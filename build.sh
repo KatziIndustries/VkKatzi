@@ -1,1 +1,1 @@
-gcc main.c -lvulkan -lglfw -o main
+gcc main.c vulkan.c -lvulkan -lglfw -o main

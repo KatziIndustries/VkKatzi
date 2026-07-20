@@ -1,0 +1,71 @@
+#ifndef VULKAN_H
+#define VULKAN_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
+
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+
+#define MAX_FRAMES_IN_FLIGHT 2
+
+typedef struct {
+    VkSwapchainKHR swapchainHandle;
+
+    VkImageView* imageViews;
+    VkImage* images;
+    VkFramebuffer* framebuffers;
+    uint32_t imageCount;
+
+    VkExtent2D dimensions;
+
+    VkFormat swapchainFormat;
+    VkSurfaceFormatKHR surfaceFormat;
+    VkPresentModeKHR surfacePresentMode;
+} VkSwapchain;
+
+typedef struct  {
+    VkInstance instance;
+    const char** layers;
+    const char** extensions;
+    uint32_t layersAmount;
+    uint32_t extensionsAmount;
+
+    VkSurfaceKHR surface;
+
+    GLFWwindow* window;
+
+    VkPhysicalDevice physicalDevice;
+    VkDevice logicalDevice;
+
+    int32_t graphicsQueueFamilyIndex;
+    int32_t presentQueueFamilyIndex;
+
+    VkQueue graphicsQueue;
+    VkQueue presentQueue;
+
+    VkSwapchain swapchain;
+
+    VkRenderPass renderPass;
+
+    VkPipelineLayout pipelineLayout;
+    VkPipeline graphicsPipeline;
+
+    VkCommandPool commandPool;
+    VkCommandBuffer* commandBuffers;
+
+    VkSemaphore imageAvailableSemaphores[MAX_FRAMES_IN_FLIGHT];
+    VkSemaphore* renderFinishedSemaphores;
+    VkFence inFlightFences[MAX_FRAMES_IN_FLIGHT];
+
+    uint32_t currentFrame;
+} VkContext;
+
+void DrawFrame(VkContext* context);
+bool InitVkContext(VkContext* context, GLFWwindow* window);
+
+#endif
