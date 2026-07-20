@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "vulkan.h"
-#include "shared.h"
+#include "include/vulkan.h"
+#include "include/shared.h"
 
 const uint32_t WINDOW_WIDTH = 1080;
 const uint32_t WINDOW_HEIGHT = 720;

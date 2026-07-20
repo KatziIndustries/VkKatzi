@@ -2,10 +2,10 @@
 #include <string.h>
 #include <stddef.h>
 
-#include "vulkan.h"
-#include "shared.h"
+#include "include/vulkan.h"
+#include "include/shared.h"
 
-const VkPresentModeKHR PREFERRED_PRESENT_MODE = VK_PRESENT_MODE_MAILBOX_KHR;
+const VkPresentModeKHR PREFERRED_PRESENT_MODE = VK_PRESENT_MODE_FIFO_KHR;
 const uint32_t DESIRED_IMAGE_COUNT = 2;
 
 typedef struct {
@@ -137,8 +137,7 @@ static bool GetPhysicalDevice(VkContext* context) {
             VkPhysicalDeviceProperties properties;
             vkGetPhysicalDeviceProperties(device, &properties);
 
-            fprintf(stdout, "Got physical device: (Name: %s, API version: %i, Driver version: %i)\n",
-                    properties.deviceName, properties.apiVersion, properties.driverVersion);
+            fprintf(stdout, "Got physical device: (Name: %s, API version: %i, Driver version: %i)\n", properties.deviceName, properties.apiVersion, properties.driverVersion);
 
             return true;
         }
@@ -568,8 +567,8 @@ static void GetVertexAttributeDescriptions(VkVertexInputAttributeDescription* o_
 
 static bool CreateGraphicsPipeline(VkContext* context) {
 
-    VkShaderModule vertModule = CreateShaderModule(context, "shader/compiled/vert.spv");
-    VkShaderModule fragModule = CreateShaderModule(context, "shader/compiled/frag.spv");
+    VkShaderModule vertModule = CreateShaderModule(context, "/media/Vulkan/VkKatzi/shader/compiled/vert.spv");
+    VkShaderModule fragModule = CreateShaderModule(context, "/media/Vulkan/VkKatzi/shader/compiled/frag.spv");
 
     if (vertModule == VK_NULL_HANDLE || fragModule == VK_NULL_HANDLE) {
         return false;
