@@ -55,6 +55,12 @@ typedef struct  {
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
 
+    VkBuffer vertexBuffer;
+    VkDeviceMemory vertexBufferMemory;
+
+    VkBuffer indexBuffer;
+    VkDeviceMemory indexBufferMemory;
+
     VkCommandPool commandPool;
     VkCommandBuffer* commandBuffers;
 

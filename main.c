@@ -4,14 +4,6 @@
 #include "vulkan.h"
 #include "shared.h"
 
-const char PathSeparator =
-#ifdef _WIN32
-    '\\';
-#else
-    '/';
-#endif
-
-
 const uint32_t WINDOW_WIDTH = 1080;
 const uint32_t WINDOW_HEIGHT = 720;
 
@@ -32,7 +24,10 @@ int main() {
     }
 
     VkContext context;
-    InitVkContext(&context, window);
+    if (!InitVkContext(&context, window)) {
+        fprintf(stderr, "Failed to initialize Vulkan context\n");
+        exit(1);
+    }
 
     double elapsedTime = 0;
     double lastFrameTime = glfwGetTime();
