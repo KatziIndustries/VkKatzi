@@ -1,0 +1,1 @@
+gcc main.c -lvulkan -lglfw -o main
