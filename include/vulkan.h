@@ -14,6 +14,12 @@
 #define MAX_FRAMES_IN_FLIGHT 2
 
 typedef struct {
+    float offset[2];
+    float scale[2];
+    float color[3];
+} RectangleInstance;
+
+typedef struct {
     VkSwapchainKHR swapchainHandle;
 
     VkImageView* imageViews;
@@ -38,6 +44,8 @@ typedef struct  {
     VkSurfaceKHR surface;
 
     GLFWwindow* window;
+    int windowWidth;
+    int windowHeight;
 
     VkPhysicalDevice physicalDevice;
     VkDevice logicalDevice;
@@ -60,6 +68,13 @@ typedef struct  {
 
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
+
+    VkBuffer instanceBuffer;
+    VkDeviceMemory instanceBufferMemory;
+    uint32_t instanceCapacity;
+
+    RectangleInstance* rectangles;
+    uint32_t rectangleCount;
 
     VkCommandPool commandPool;
     VkCommandBuffer* commandBuffers;

@@ -4,6 +4,7 @@
 
 #include "include/vulkan.h"
 #include "include/shared.h"
+#include "include/rectangle.h"
 
 const VkPresentModeKHR PREFERRED_PRESENT_MODE = VK_PRESENT_MODE_FIFO_KHR;
 const uint32_t DESIRED_IMAGE_COUNT = 2;
@@ -18,7 +19,6 @@ typedef struct {
 
 typedef struct {
     float position[2];
-    float color[3];
 } Vertex;
 
 //static const Vertex vertices[] = {
@@ -32,14 +32,15 @@ typedef struct {
 //};
 
 static const Vertex vertices[] = {
-    {{-1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}},
-    {{1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}},
-    {{1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-    {{-1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-0.5f, -0.5f}},
+    {{0.5f, -0.5f}},
+    {{0.5f, 0.5f}},
+    {{-0.5f, 0.5f}},
 };
 
 static const uint16_t indices[] = {
-    0, 1, 2, 0, 2, 3
+    0, 1, 2, 
+    0, 2, 3
 };
 
 #define VERTEX_COUNT (sizeof(vertices) / sizeof(vertices[0]))
@@ -274,7 +275,7 @@ static void LogPresentMode(VkPresentModeKHR presentMode) {
     }
 }
 
-static bool CreateVkSwapchain(VkContext* context, VkSwapchain* o_swapchain, uint32_t width, uint32_t height) {
+static bool CreateVkSwapchain(VkContext* context, VkSwapchain* o_swapchain) {
 
     VkSwapchainInfo info;
     GetVkSwapchainInfo(context, &info);
@@ -284,7 +285,7 @@ static bool CreateVkSwapchain(VkContext* context, VkSwapchain* o_swapchain, uint
 
     LogPresentMode(presentMode);
 
-    VkExtent2D extent = GetVkSwapchainExtent(&info.surfaceCapabilities, width, height);
+    VkExtent2D extent = GetVkSwapchainExtent(&info.surfaceCapabilities, context->windowWidth, context->windowHeight);
 
     uint32_t imageCount;
     if (DESIRED_IMAGE_COUNT >= info.surfaceCapabilities.minImageCount) {
@@ -557,11 +558,55 @@ static void GetVertexAttributeDescriptions(VkVertexInputAttributeDescription* o_
         .offset = offsetof(Vertex, position)
     };
 
-    o_attributes[1] = (VkVertexInputAttributeDescription) {
+    //o_attributes[1] = (VkVertexInputAttributeDescription) {
+    //    .binding = 0,
+    //    .location = 1,
+    //    .format = VK_FORMAT_R32G32B32_SFLOAT,
+    //    .offset = offsetof(Vertex, color)
+    //};
+}
+
+static VkVertexInputBindingDescription GetBindingDescription(VkVertexInputBindingDescription* o_bindings) {
+    o_bindings[0] = (VkVertexInputBindingDescription){
         .binding = 0,
+        .stride = sizeof(Vertex),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
+
+    o_bindings[1] = (VkVertexInputBindingDescription){
+        .binding = 1,
+        .stride = sizeof(RectangleInstance),
+        .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE
+    };
+}
+
+static void GetAttributeDescriptions(VkVertexInputAttributeDescription* o_attributes) {
+    o_attributes[0] = (VkVertexInputAttributeDescription){
+        .binding = 0,
+        .location = 0,
+        .format = VK_FORMAT_R32G32_SFLOAT,
+        .offset = offsetof(Vertex, position)
+    };
+
+    o_attributes[1] = (VkVertexInputAttributeDescription){
+        .binding = 1,
         .location = 1,
+        .format = VK_FORMAT_R32G32_SFLOAT,
+        .offset = offsetof(RectangleInstance, offset)
+    };
+
+    o_attributes[2] = (VkVertexInputAttributeDescription){
+        .binding = 1,
+        .location = 2,
+        .format = VK_FORMAT_R32G32_SFLOAT,
+        .offset = offsetof(RectangleInstance, scale)
+    };
+
+    o_attributes[3] = (VkVertexInputAttributeDescription){
+        .binding = 1,
+        .location = 3,
         .format = VK_FORMAT_R32G32B32_SFLOAT,
-        .offset = offsetof(Vertex, color)
+        .offset = offsetof(RectangleInstance, color)
     };
 }
 
@@ -589,17 +634,23 @@ static bool CreateGraphicsPipeline(VkContext* context) {
         }
     };
 
-    const VkVertexInputBindingDescription bindingDescription = GetVertexBindingDescription();
+    //const VkVertexInputBindingDescription bindingDescription = GetVertexBindingDescription();
 
-    VkVertexInputAttributeDescription attributeDescriptions[2];
-    GetVertexAttributeDescriptions(attributeDescriptions);
+    //VkVertexInputAttributeDescription attributeDescriptions[2];
+    //GetVertexAttributeDescriptions(attributeDescriptions);
+
+    VkVertexInputBindingDescription bindingDescriptions[2];
+    GetBindingDescription(bindingDescriptions);
+
+    VkVertexInputAttributeDescription attributeDescription[4];
+    GetAttributeDescriptions(attributeDescription);
 
     const VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 1,
-        .pVertexBindingDescriptions = &bindingDescription,
-        .vertexAttributeDescriptionCount = 2,
-        .pVertexAttributeDescriptions = attributeDescriptions
+        .vertexBindingDescriptionCount = 2,
+        .pVertexBindingDescriptions = bindingDescriptions,
+        .vertexAttributeDescriptionCount = 4,
+        .pVertexAttributeDescriptions = attributeDescription
     };
 
     const VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
@@ -751,13 +802,13 @@ static bool RecordCommandBuffer(VkContext* context, VkCommandBuffer commandBuffe
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->graphicsPipeline);
 
+    VkBuffer vertexBuffers[] = { context->vertexBuffer, context->instanceBuffer };
+    VkDeviceSize offsets[] = { 0, 0 };
 
-    VkBuffer buffers[] = { context->vertexBuffer };
-    VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
+    vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(commandBuffer, context->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-    vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, 1, 0, 0, 0);
+    vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, context->rectangleCount, 0, 0, 0);
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -858,6 +909,29 @@ static bool CreateIndexBuffer(VkContext* context) {
     return true;
 }
 
+static bool CreateInstanceBuffer(VkContext* context, uint32_t maxInstances) {
+    VkDeviceSize bufferSize = sizeof(RectangleInstance) * maxInstances;
+
+    if (!CreateBuffer(context, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &context->instanceBuffer, &context->instanceBufferMemory)) {
+        return false;
+    }
+
+    context->instanceCapacity = maxInstances;
+
+    fprintf(stdout, "Created Vulkan instance buffer (capacity: %u)\n", maxInstances);
+
+    return true;
+}
+
+static void UpdateInstanceBuffer(VkContext* context) {
+    VkDeviceSize dataSize = sizeof(RectangleInstance) * context->rectangleCount;
+
+    void* data;
+    vkMapMemory(context->logicalDevice, context->instanceBufferMemory, 0, dataSize, 0, &data);
+    memcpy(data, context->rectangles, (size_t)dataSize);
+    vkUnmapMemory(context->logicalDevice, context->instanceBufferMemory);
+}
+
 void DrawFrame(VkContext* context) {
     vkWaitForFences(context->logicalDevice, 1, &context->inFlightFences[context->currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -865,6 +939,8 @@ void DrawFrame(VkContext* context) {
     vkAcquireNextImageKHR(context->logicalDevice, context->swapchain.swapchainHandle, UINT64_MAX, context->imageAvailableSemaphores[context->currentFrame], VK_NULL_HANDLE, &imageIndex);
 
     vkResetFences(context->logicalDevice, 1, &context->inFlightFences[context->currentFrame]);
+
+    UpdateInstanceBuffer(context);
 
     vkResetCommandBuffer(context->commandBuffers[imageIndex], 0);
     RecordCommandBuffer(context, context->commandBuffers[imageIndex], imageIndex);
@@ -901,6 +977,43 @@ void DrawFrame(VkContext* context) {
     context->currentFrame = (context->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
+float PixelToNDC_X(float pixelX, float screenWidth) {
+    return (pixelX / screenWidth) * 2.0f - 1.0f;
+}
+
+
+float PixelToNDC_Y(float pixelY, float screenHeight) {
+    return (pixelY / screenHeight) * 2.0f - 1.0f;
+}
+
+
+float PixelWidthToNDC_X(float pixelWidth, float screenWidth) {
+    return (pixelWidth / screenWidth) * 2.0f;
+}
+
+
+float PixelHeightToNDC_Y(float pixelHeight, float screenHeight) {
+    return (pixelHeight / screenHeight) * 2.0f;
+}
+
+void AddRectangle(VkContext* context, Rectangle rectangle) {
+
+    RectangleInstance instance = {
+        .offset[0] = PixelToNDC_X(rectangle.x, 1920),
+        .offset[1] = PixelToNDC_Y(rectangle.y, 1080),
+
+        .scale[0] = PixelWidthToNDC_X(rectangle.width, 1920),
+        .scale[1] = PixelHeightToNDC_Y(rectangle.height, 1080),
+
+        .color[0] = 1.0f,
+        .color[1] = 0.0f,
+        .color[2] = 0.0f,
+    };
+
+    context->rectangles[context->rectangleCount] = instance;
+    context->rectangleCount++;
+}
+
 bool InitVkContext(VkContext* context, GLFWwindow* window) {
 
     int windowWidth;
@@ -909,6 +1022,8 @@ bool InitVkContext(VkContext* context, GLFWwindow* window) {
     glfwGetWindowSize(window, &windowWidth, &windowHeight);
 
     context->window = window;
+    context->windowWidth = windowWidth;
+    context->windowHeight = windowHeight;
 
     uint32_t instanceExtensionsAmount;
     const char** instanceExtensions = glfwGetRequiredInstanceExtensions(&instanceExtensionsAmount);
@@ -943,7 +1058,7 @@ bool InitVkContext(VkContext* context, GLFWwindow* window) {
         return false;
     }
 
-    if (!CreateVkSwapchain(context, &context->swapchain, windowWidth, windowHeight)) {
+    if (!CreateVkSwapchain(context, &context->swapchain)) {
         return false;
     }
 
@@ -980,6 +1095,22 @@ bool InitVkContext(VkContext* context, GLFWwindow* window) {
     }
 
     context->currentFrame = 0;
+
+    int maxInstances = 100;
+    context->rectangles = malloc(sizeof(RectangleInstance) * maxInstances);
+
+    context->rectangleCount = 0;
+
+    Rectangle rect = {
+        .x = 50,
+        .y = 50,
+        .width = 50,
+        .height = 50
+    };
+
+    AddRectangle(context, rect);
+
+    CreateInstanceBuffer(context, maxInstances);
 
     return true;
 }
