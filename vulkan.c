@@ -81,8 +81,8 @@ typedef struct  {
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
 
-    VkBuffer instanceBuffer;
-    VkDeviceMemory instanceBufferMemory;
+    VkBuffer instanceBuffers[MAX_FRAMES_IN_FLIGHT];
+    VkDeviceMemory instanceBufferMemories[MAX_FRAMES_IN_FLIGHT];
     uint32_t instanceCapacity;
 
     VkBuffer uniformBuffer;
@@ -784,7 +784,13 @@ static bool CreateGraphicsPipeline() {
 
     const VkPipelineColorBlendAttachmentState colorBlendAttachment = {
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-        .blendEnable = VK_FALSE
+        .blendEnable = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp = VK_BLEND_OP_ADD
     };
 
     const VkPipelineColorBlendStateCreateInfo colorBlending = {
@@ -912,7 +918,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     if (vkContext.rectangleCount > 0) {
-        VkBuffer vertexBuffers[] = { vkContext.vertexBuffer, vkContext.instanceBuffer };
+        VkBuffer vertexBuffers[] = { vkContext.vertexBuffer, vkContext.instanceBuffers[vkContext.currentFrame] };
         VkDeviceSize offsets[] = { 0, 0 };
 
         vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
@@ -1026,8 +1032,10 @@ static bool CreateIndexBuffer() {
 static bool CreateInstanceBuffer(uint32_t maxInstances) {
     VkDeviceSize bufferSize = sizeof(RectangleInstance) * maxInstances;
 
-    if (!CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vkContext.instanceBuffer, &vkContext.instanceBufferMemory)) {
-        return false;
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (!CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vkContext.instanceBuffers[i], &vkContext.instanceBufferMemories[i])) {
+            return false;
+        }
     }
 
     vkContext.instanceCapacity = maxInstances;
@@ -1191,16 +1199,15 @@ static bool CreateDescriptorPoolAndSet() {
 
 static void UpdateInstanceBuffer() {
 
-    if (vkContext.rectangleCount == 0) {
+    if (vkContext.rectangleCount == 0)
         return;
-    }
 
     VkDeviceSize dataSize = sizeof(RectangleInstance) * vkContext.rectangleCount;
 
     void* data;
-    vkMapMemory(vkContext.logicalDevice, vkContext.instanceBufferMemory, 0, dataSize, 0, &data);
+    vkMapMemory(vkContext.logicalDevice, vkContext.instanceBufferMemories[vkContext.currentFrame], 0, dataSize, 0, &data);
     memcpy(data, vkContext.rectangles, (size_t)dataSize);
-    vkUnmapMemory(vkContext.logicalDevice, vkContext.instanceBufferMemory);
+    vkUnmapMemory(vkContext.logicalDevice, vkContext.instanceBufferMemories[vkContext.currentFrame]);
 }
 
 static void FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -1266,12 +1273,14 @@ void VKK_Present() {
     }
 
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-
-    memset(vkContext.rectangles, 0, sizeof(vkContext.rectangles));
-    vkContext.rectangleCount = 0;
 }
 
 void VKK_RenderRectangle(VKK_Rectangle rectangle) {
+
+    if (vkContext.rectangleCount >= vkContext.instanceCapacity) {
+        fprintf(stderr, "Rectangle instance buffer full (capacity %u), dropping draw call\n", vkContext.instanceCapacity);
+        return;
+    }
 
     RectangleInstance instance = {
         .offset[0] = rectangle.x,
@@ -1381,7 +1390,7 @@ bool VKK_Init(GLFWwindow* window) {
 
     vkContext.currentFrame = 0;
 
-    int maxInstances = 100;
+    int maxInstances = 10000;
     vkContext.rectangles = malloc(sizeof(RectangleInstance) * maxInstances);
 
     vkContext.rectangleCount = 0;
@@ -1393,4 +1402,43 @@ bool VKK_Init(GLFWwindow* window) {
 
 void VKK_End() {
     vkDeviceWaitIdle(vkContext.logicalDevice);
+
+    CleanupSwapchain();
+
+    vkDestroyDescriptorPool(vkContext.logicalDevice, vkContext.descriptorPool, NULL);
+    vkDestroyDescriptorSetLayout(vkContext.logicalDevice, vkContext.descriptorSetLayout, NULL);
+
+    vkDestroyBuffer(vkContext.logicalDevice, vkContext.uniformBuffer, NULL);
+    vkFreeMemory(vkContext.logicalDevice, vkContext.uniformBufferMemory, NULL);
+
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroyBuffer(vkContext.logicalDevice, vkContext.instanceBuffers[i], NULL);
+        vkFreeMemory(vkContext.logicalDevice, vkContext.instanceBufferMemories[i], NULL);
+        vkDestroySemaphore(vkContext.logicalDevice, vkContext.imageAvailableSemaphores[i], NULL);
+        vkDestroyFence(vkContext.logicalDevice, vkContext.inFlightFences[i], NULL);
+    }
+
+    for (uint32_t i = 0; i < vkContext.swapchain.imageCount; i++) {
+        vkDestroySemaphore(vkContext.logicalDevice, vkContext.renderFinishedSemaphores[i], NULL);
+    }
+
+    free(vkContext.renderFinishedSemaphores);
+
+    vkDestroyBuffer(vkContext.logicalDevice, vkContext.indexBuffer, NULL);
+    vkFreeMemory(vkContext.logicalDevice, vkContext.indexBufferMemory, NULL);
+    vkDestroyBuffer(vkContext.logicalDevice, vkContext.vertexBuffer, NULL);
+    vkFreeMemory(vkContext.logicalDevice, vkContext.vertexBufferMemory, NULL);
+
+    vkDestroyCommandPool(vkContext.logicalDevice, vkContext.commandPool, NULL);
+    free(vkContext.commandBuffers);
+
+    vkDestroyPipeline(vkContext.logicalDevice, vkContext.graphicsPipeline, NULL);
+    vkDestroyPipelineLayout(vkContext.logicalDevice, vkContext.pipelineLayout, NULL);
+    vkDestroyRenderPass(vkContext.logicalDevice, vkContext.renderPass, NULL);
+    
+    vkDestroyDevice(vkContext.logicalDevice, NULL);
+    vkDestroySurfaceKHR(vkContext.instance, vkContext.surface, NULL);
+    vkDestroyInstance(vkContext.instance, NULL);
+
+    free(vkContext.rectangles);
 }

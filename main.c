@@ -65,8 +65,6 @@ int main() {
             leftMousePressed = false;
         }
 
-        VKK_RenderRectangle(rect);
-
 	    VKK_PollEvents();
         VKK_Present();
     }
