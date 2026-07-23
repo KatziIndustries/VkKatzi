@@ -1260,7 +1260,7 @@ void VKK_Present() {
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void AddRectangle(Rectangle rectangle) {
+void VKK_AddRectangle(VKK_Rectangle rectangle) {
 
     RectangleInstance instance = {
         .offset[0] = rectangle.x,
@@ -1374,15 +1374,6 @@ bool VKK_Init(GLFWwindow* window) {
     vkContext.rectangles = malloc(sizeof(RectangleInstance) * maxInstances);
 
     vkContext.rectangleCount = 0;
-
-    Rectangle rect = {
-        .x = 0,
-        .y = 0,
-        .width = 100,
-        .height = 100
-    };
-
-    AddRectangle(rect);
 
     CreateInstanceBuffer(maxInstances);
 

@@ -1,6 +1,11 @@
+#ifndef RECTANGLE_H
+#define RECTANGLE_H
+
 typedef struct {
     float x;
     float y;
     float width;
     float height;
-} Rectangle;
+} VKK_Rectangle;
+
+#endif
