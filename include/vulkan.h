@@ -1,5 +1,5 @@
-#ifndef VULKAN_H
-#define VULKAN_H
+#ifndef VKK_VULKAN_H
+#define VKK_VULKAN_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +17,7 @@
 
 void VKK_Present();
 bool VKK_Init(GLFWwindow* window);
-void VKK_AddRectangle(VKK_Rectangle rectangle);
+void VKK_RenderRectangle(VKK_Rectangle rectangle);
 void VKK_End();
 
 #endif

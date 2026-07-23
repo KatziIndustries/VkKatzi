@@ -911,15 +911,18 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
 
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    VkBuffer vertexBuffers[] = { vkContext.vertexBuffer, vkContext.instanceBuffer };
-    VkDeviceSize offsets[] = { 0, 0 };
+    if (vkContext.rectangleCount > 0) {
+        VkBuffer vertexBuffers[] = { vkContext.vertexBuffer, vkContext.instanceBuffer };
+        VkDeviceSize offsets[] = { 0, 0 };
 
-    vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(commandBuffer, vkContext.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, vkContext.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.pipelineLayout, 0, 1, &vkContext.descriptorSet, 0, NULL);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.pipelineLayout, 0, 1, &vkContext.descriptorSet, 0, NULL);
     
-    vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, vkContext.rectangleCount, 0, 0, 0);
+        vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, vkContext.rectangleCount, 0, 0, 0);
+    }
+
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -1187,6 +1190,11 @@ static bool CreateDescriptorPoolAndSet() {
 }
 
 static void UpdateInstanceBuffer() {
+
+    if (vkContext.rectangleCount == 0) {
+        return;
+    }
+
     VkDeviceSize dataSize = sizeof(RectangleInstance) * vkContext.rectangleCount;
 
     void* data;
@@ -1258,9 +1266,12 @@ void VKK_Present() {
     }
 
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+
+    memset(vkContext.rectangles, 0, sizeof(vkContext.rectangles));
+    vkContext.rectangleCount = 0;
 }
 
-void VKK_AddRectangle(VKK_Rectangle rectangle) {
+void VKK_RenderRectangle(VKK_Rectangle rectangle) {
 
     RectangleInstance instance = {
         .offset[0] = rectangle.x,

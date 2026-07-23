@@ -1,5 +1,5 @@
-#ifndef RECTANGLE_H
-#define RECTANGLE_H
+#ifndef VKK_RECTANGLE_H
+#define VKK_RECTANGLE_H
 
 typedef struct {
     float x;

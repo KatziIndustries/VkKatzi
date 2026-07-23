@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "include/vulkan.h"
+#include "include/window.h"
 #include "include/shared.h"
 
 const int WINDOW_WIDTH = 640;
@@ -16,19 +17,8 @@ bool leftMousePressed;
 
 int main() {
 
-    if (!glfwInit())
-    return -1;
-    
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    window = VKK_CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol");
 
-    window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol", NULL, NULL);
-
-    if (!window)
-    {
-        glfwTerminate();
-        return -1;
-    }
-    
     if (!VKK_Init(window)) {
         fprintf(stderr, "Failed to initialize Vulkan context\n");
         exit(1);
@@ -41,12 +31,10 @@ int main() {
         .height = 100
     };
 
-    VKK_AddRectangle(rect);
-
     double elapsedTime = 0;
     double lastFrameTime = glfwGetTime();
 
-    while (!glfwWindowShouldClose(window))
+    while (!VKK_WindowShouldClose(window))
     {
         double currentTime = glfwGetTime();
         double deltaTime = currentTime - lastFrameTime;
@@ -69,25 +57,20 @@ int main() {
             double mouseY;
 
             glfwGetCursorPos(window, &mouseX, &mouseY);
-
-            VKK_Rectangle rect = {
-                .x = mouseX,
-                .y = mouseY,
-                .width = 50,
-                .height = 50
-            };
-
-            VKK_AddRectangle(rect);
+            rect.x = mouseX;
+            rect.y = mouseY;
         }
 
         if (pressed == 0) {
             leftMousePressed = false;
         }
 
-        glfwPollEvents();
+        VKK_RenderRectangle(rect);
+
+	    VKK_PollEvents();
         VKK_Present();
     }
 
     VKK_End();
-    glfwTerminate();
+    VKK_TerminateWindowing();
 }
