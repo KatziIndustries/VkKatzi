@@ -6,7 +6,7 @@
 #include "include/shared.h"
 #include "include/rectangle.h"
 
-const VkPresentModeKHR PREFERRED_PRESENT_MODE = VK_PRESENT_MODE_FIFO_KHR;
+const VkPresentModeKHR PREFERRED_PRESENT_MODE = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
 const uint32_t DESIRED_IMAGE_COUNT = 2;
 
 typedef struct {
@@ -652,26 +652,35 @@ static bool CreateGraphicsPipeline(VkContext* context) {
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
     };
 
-    const VkViewport viewport = {
-        .x = 0.0f,
-        .y = 0.0f,
-        .width = (float)context->swapchain.dimensions.width,
-        .height = (float)context->swapchain.dimensions.height,
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f
+    //const VkViewport viewport = {
+    //    .x = 0.0f,
+    //    .y = 0.0f,
+    //    .width = (float)context->swapchain.dimensions.width,
+    //    .height = (float)context->swapchain.dimensions.height,
+    //    .minDepth = 0.0f,
+    //    .maxDepth = 1.0f
+    //};
+
+    //const VkRect2D scissor = {
+    //    .offset = {0, 0},
+    //    .extent = context->swapchain.dimensions
+    //};
+
+    const VkDynamicState dynamicStates[] = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
     };
 
-    const VkRect2D scissor = {
-        .offset = {0, 0},
-        .extent = context->swapchain.dimensions
+    const VkPipelineDynamicStateCreateInfo dynamicState = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = 2,
+        .pDynamicStates = dynamicStates
     };
 
     const VkPipelineViewportStateCreateInfo viewportState = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         .viewportCount = 1,
-        .pViewports = &viewport,
-        .scissorCount = 1,
-        .pScissors = &scissor
+        .scissorCount = 1
     };
 
     const VkPipelineRasterizationStateCreateInfo rasterizer = {
@@ -722,7 +731,8 @@ static bool CreateGraphicsPipeline(VkContext* context) {
         .pColorBlendState = &colorBlending,
         .layout = context->pipelineLayout,
         .renderPass = context->renderPass,
-        .subpass = 0
+        .subpass = 0,
+        .pDynamicState = &dynamicState
     };
 
     if (vkCreateGraphicsPipelines(context->logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &context->graphicsPipeline) != VK_SUCCESS) {
@@ -797,6 +807,24 @@ static bool RecordCommandBuffer(VkContext* context, VkCommandBuffer commandBuffe
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->graphicsPipeline);
+
+    const VkViewport viewport = {
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = (float)context->swapchain.dimensions.width,
+        .height = (float)context->swapchain.dimensions.height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
+    };
+
+    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+    const VkRect2D scissor = {
+        .offset = { 0, 0},
+        .extent = context->swapchain.dimensions
+    };
+
+    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     VkBuffer vertexBuffers[] = { context->vertexBuffer, context->instanceBuffer };
     VkDeviceSize offsets[] = { 0, 0 };
@@ -976,6 +1004,49 @@ static bool CreateUniformBuffer(VkContext* context) {
     return true;
 }
 
+static void CleanupSwapchain(VkContext* context) { 
+    for (uint32_t i = 0; i < context->swapchain.imageCount; i++) {
+        vkDestroyFramebuffer(context->logicalDevice, context->swapchain.framebuffers[i], NULL);
+        vkDestroyImageView(context->logicalDevice, context->swapchain.imageViews[i], NULL);
+    }
+
+    free(context->swapchain.framebuffers);
+    free(context->swapchain.imageViews);
+    free(context->swapchain.images);
+
+    vkDestroySwapchainKHR(context->logicalDevice, context->swapchain.swapchainHandle, NULL);
+}
+
+static bool RecreateSwapchain(VkContext* context) {
+    int width = 0;
+    int height = 0;
+    glfwGetFramebufferSize(context->window, &width, &height);
+
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(context->window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    vkDeviceWaitIdle(context->logicalDevice);
+
+    CleanupSwapchain(context);
+
+    if (!CreateVkSwapchain(context, &context->swapchain)) {
+        return false;
+    }
+
+    if (!CreateFrameBuffers(context, &context->swapchain)) {
+        return false;
+    }
+
+    UniformBufferObject* ubo = (UniformBufferObject*)context->uniformBufferMapped;
+    CreateOrthoMatrix(ubo->ortho, (float)width, (float)height);
+
+    fprintf(stdout, "Recreated Vulkan swapchain\n");
+
+    return true;
+}
+
 static bool CreateDescriptorPoolAndSet(VkContext* context) {
 
     const VkDescriptorPoolSize poolSize = {
@@ -1039,11 +1110,24 @@ static void UpdateInstanceBuffer(VkContext* context) {
     vkUnmapMemory(context->logicalDevice, context->instanceBufferMemory);
 }
 
+void FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
+    VkContext* context = (VkContext*)glfwGetWindowUserPointer(window);
+    context->frameBufferResized = true;
+}
+
 void DrawFrame(VkContext* context) {
     vkWaitForFences(context->logicalDevice, 1, &context->inFlightFences[context->currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(context->logicalDevice, context->swapchain.swapchainHandle, UINT64_MAX, context->imageAvailableSemaphores[context->currentFrame], VK_NULL_HANDLE, &imageIndex);
+    VkResult acquireResult = vkAcquireNextImageKHR(context->logicalDevice, context->swapchain.swapchainHandle, UINT64_MAX, context->imageAvailableSemaphores[context->currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+        RecreateSwapchain(context);
+        return;
+    } else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
+        fprintf(stderr, "Failed to acquire swapchain image\n");
+        return;
+    }
 
     vkResetFences(context->logicalDevice, 1, &context->inFlightFences[context->currentFrame]);
 
@@ -1079,7 +1163,14 @@ void DrawFrame(VkContext* context) {
         .pImageIndices = &imageIndex
     };
 
-    vkQueuePresentKHR(context->presentQueue, &presentInfo);
+    VkResult presentResult = vkQueuePresentKHR(context->presentQueue, &presentInfo);
+
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || context->frameBufferResized) {
+        context->frameBufferResized = false;
+        RecreateSwapchain(context);
+    } else if (presentResult != VK_SUCCESS) {
+        fprintf(stderr, "Failed to present swapchain image\n");
+    }
 
     context->currentFrame = (context->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }

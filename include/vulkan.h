@@ -92,9 +92,12 @@ typedef struct  {
     VkFence inFlightFences[MAX_FRAMES_IN_FLIGHT];
 
     uint32_t currentFrame;
+
+    bool frameBufferResized;
 } VkContext;
 
 void DrawFrame(VkContext* context);
 bool InitVkContext(VkContext* context, GLFWwindow* window);
+void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
 #endif

@@ -7,6 +7,9 @@
 const int WINDOW_WIDTH = 640;
 const int WINDOW_HEIGHT = 480;
 
+int lastWindowWidth = WINDOW_WIDTH;
+int lastWindowHeight = WINDOW_HEIGHT;
+
 int main() {
 
     GLFWwindow* window;
@@ -25,8 +28,12 @@ int main() {
         return -1;
     }
 
+    
     VkContext context;
 
+    glfwSetWindowUserPointer(window, &context);
+    glfwSetFramebufferSizeCallback(window, FramebufferResizeCallback);
+    
     int windowWidth;
     int windowHeight;
 
