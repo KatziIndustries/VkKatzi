@@ -10,11 +10,10 @@ const int WINDOW_HEIGHT = 480;
 int lastWindowWidth = WINDOW_WIDTH;
 int lastWindowHeight = WINDOW_HEIGHT;
 
+GLFWwindow* window;
+
 int main() {
 
-    GLFWwindow* window;
-
-    
     if (!glfwInit())
     return -1;
     
@@ -27,21 +26,8 @@ int main() {
         glfwTerminate();
         return -1;
     }
-
     
-    VkContext context;
-
-    glfwSetWindowUserPointer(window, &context);
-    glfwSetFramebufferSizeCallback(window, FramebufferResizeCallback);
-    
-    int windowWidth;
-    int windowHeight;
-
-    glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
-    context.windowWidth = windowWidth;
-    context.windowHeight = windowHeight;
-
-    if (!InitVkContext(&context, window)) {
+    if (!VKK_Init(window)) {
         fprintf(stderr, "Failed to initialize Vulkan context\n");
         exit(1);
     }
@@ -49,7 +35,7 @@ int main() {
     double elapsedTime = 0;
     double lastFrameTime = glfwGetTime();
 
-    while (!glfwWindowShouldClose(context.window))
+    while (!glfwWindowShouldClose(window))
     {
         double currentTime = glfwGetTime();
         double deltaTime = currentTime - lastFrameTime;
@@ -64,9 +50,9 @@ int main() {
         }
 
         glfwPollEvents();
-        DrawFrame(&context);
+        VKK_Present();
     }
 
-    vkDeviceWaitIdle(context.logicalDevice);
+    VKK_End();
     glfwTerminate();
 }

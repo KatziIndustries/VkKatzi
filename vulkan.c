@@ -25,6 +25,89 @@ typedef struct {
     float ortho[16];
 } UniformBufferObject;
 
+typedef struct {
+    float offset[2];
+    float scale[2];
+    float color[3];
+} RectangleInstance;
+
+typedef struct {
+    VkSwapchainKHR swapchainHandle;
+
+    VkImageView* imageViews;
+    VkImage* images;
+    VkFramebuffer* framebuffers;
+    uint32_t imageCount;
+
+    VkExtent2D dimensions;
+
+    VkFormat swapchainFormat;
+    VkSurfaceFormatKHR surfaceFormat;
+    VkPresentModeKHR surfacePresentMode;
+} VkSwapchain;
+
+typedef struct  {
+    VkInstance instance;
+    const char** layers;
+    const char** extensions;
+    uint32_t layersAmount;
+    uint32_t extensionsAmount;
+
+    VkSurfaceKHR surface;
+
+    GLFWwindow* window;
+    int windowWidth;
+    int windowHeight;
+
+    VkPhysicalDevice physicalDevice;
+    VkDevice logicalDevice;
+
+    int32_t graphicsQueueFamilyIndex;
+    int32_t presentQueueFamilyIndex;
+
+    VkQueue graphicsQueue;
+    VkQueue presentQueue;
+
+    VkSwapchain swapchain;
+
+    VkRenderPass renderPass;
+
+    VkPipelineLayout pipelineLayout;
+    VkPipeline graphicsPipeline;
+
+    VkBuffer vertexBuffer;
+    VkDeviceMemory vertexBufferMemory;
+
+    VkBuffer indexBuffer;
+    VkDeviceMemory indexBufferMemory;
+
+    VkBuffer instanceBuffer;
+    VkDeviceMemory instanceBufferMemory;
+    uint32_t instanceCapacity;
+
+    VkBuffer uniformBuffer;
+    VkDeviceMemory uniformBufferMemory;
+    void* uniformBufferMapped;
+
+    VkDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorPool descriptorPool;
+    VkDescriptorSet descriptorSet;
+
+    RectangleInstance* rectangles;
+    uint32_t rectangleCount;
+
+    VkCommandPool commandPool;
+    VkCommandBuffer* commandBuffers;
+
+    VkSemaphore imageAvailableSemaphores[MAX_FRAMES_IN_FLIGHT];
+    VkSemaphore* renderFinishedSemaphores;
+    VkFence inFlightFences[MAX_FRAMES_IN_FLIGHT];
+
+    uint32_t currentFrame;
+
+    bool frameBufferResized;
+} VkContext;
+
 static const Vertex vertices[] = {
     {{-1.0f, -1.0f}},
     {{1.0f, -1.0f}},
@@ -40,7 +123,9 @@ static const uint16_t indices[] = {
 #define VERTEX_COUNT (sizeof(vertices) / sizeof(vertices[0]))
 #define INDEX_COUNT (sizeof(indices) / sizeof(indices[0]))
 
-static bool CreateInstance(VkContext* context) {
+static VkContext vkContext;
+
+static bool CreateInstance() {
 
     const VkApplicationInfo applicationInfo = {
         .apiVersion = VK_API_VERSION_1_4,
@@ -53,14 +138,14 @@ static bool CreateInstance(VkContext* context) {
 
     const VkInstanceCreateInfo instanceCreateInfo = {
         .pApplicationInfo = &applicationInfo,
-        .enabledLayerCount = context->layersAmount,
-        .enabledExtensionCount = context->extensionsAmount,
-        .ppEnabledLayerNames = context->layers,
-        .ppEnabledExtensionNames = context->extensions,
+        .enabledLayerCount = vkContext.layersAmount,
+        .enabledExtensionCount = vkContext.extensionsAmount,
+        .ppEnabledLayerNames = vkContext.layers,
+        .ppEnabledExtensionNames = vkContext.extensions,
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
     };
 
-    if (vkCreateInstance(&instanceCreateInfo, NULL, &context->instance) != VK_SUCCESS) {
+    if (vkCreateInstance(&instanceCreateInfo, NULL, &vkContext.instance) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create Vulkan instance\n");
         return false;
     }
@@ -70,10 +155,10 @@ static bool CreateInstance(VkContext* context) {
     return true;
 }
 
-static bool CreateVkSurface(VkContext* context) {
-    glfwCreateWindowSurface(context->instance, context->window, NULL, &context->surface);
+static bool CreateVkSurface() {
+    glfwCreateWindowSurface(vkContext.instance, vkContext.window, NULL, &vkContext.surface);
 
-    if (!context->surface) {
+    if (!vkContext.surface) {
         fprintf(stderr, "Failed to create Vulkan surface\n");
         return false;
     }
@@ -83,10 +168,10 @@ static bool CreateVkSurface(VkContext* context) {
     return true;
 }
 
-static bool GetPhysicalDevice(VkContext* context) {
+static bool GetPhysicalDevice() {
     uint32_t deviceCount;
 
-    vkEnumeratePhysicalDevices(context->instance, &deviceCount, NULL);
+    vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, NULL);
     
     if (deviceCount == 0) {
         fprintf(stderr, "No GPUs with Vulkan support found\n");
@@ -94,7 +179,7 @@ static bool GetPhysicalDevice(VkContext* context) {
     }
 
     VkPhysicalDevice physicalDevices[8];
-    vkEnumeratePhysicalDevices(context->instance, &deviceCount, physicalDevices);
+    vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, physicalDevices);
 
     for (uint32_t i = 0; i < deviceCount; i++) {
         VkPhysicalDevice device = physicalDevices[i];
@@ -113,7 +198,7 @@ static bool GetPhysicalDevice(VkContext* context) {
                 graphicsQueueFamilyIndex = j;
 
                 VkBool32 supported = VK_FALSE;
-                vkGetPhysicalDeviceSurfaceSupportKHR(device, j, context->surface, &supported);
+                vkGetPhysicalDeviceSurfaceSupportKHR(device, j, vkContext.surface, &supported);
 
                 if (supported) {
                     presentQueueFamilyIndex = j;
@@ -125,9 +210,9 @@ static bool GetPhysicalDevice(VkContext* context) {
         }
 
         if (graphicsQueueFamilyIndex != -1 && presentQueueFamilyIndex != -1) {
-            context->physicalDevice = device;
-            context->graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
-            context->presentQueueFamilyIndex = presentQueueFamilyIndex;
+            vkContext.physicalDevice = device;
+            vkContext.graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
+            vkContext.presentQueueFamilyIndex = presentQueueFamilyIndex;
 
             VkPhysicalDeviceProperties properties;
             vkGetPhysicalDeviceProperties(device, &properties);
@@ -143,7 +228,7 @@ static bool GetPhysicalDevice(VkContext* context) {
     return false;
 }
 
-static bool CreateLogicalDevice(VkContext* context) {
+static bool CreateLogicalDevice() {
 
     VkDeviceQueueCreateInfo deviceQueueCreateInfo[2];
 
@@ -151,16 +236,16 @@ static bool CreateLogicalDevice(VkContext* context) {
     uint32_t queuesAmount = 0;
 
     deviceQueueCreateInfo[queuesAmount++] = (VkDeviceQueueCreateInfo){
-        .queueFamilyIndex = context->graphicsQueueFamilyIndex,
+        .queueFamilyIndex = vkContext.graphicsQueueFamilyIndex,
         .queueCount = 1,
         .pQueuePriorities = &priority,
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
     };
 
-    if (context->graphicsQueueFamilyIndex != context->presentQueueFamilyIndex) {
+    if (vkContext.graphicsQueueFamilyIndex != vkContext.presentQueueFamilyIndex) {
 
         deviceQueueCreateInfo[queuesAmount++] = (VkDeviceQueueCreateInfo){
-            .queueFamilyIndex = context->presentQueueFamilyIndex,
+            .queueFamilyIndex = vkContext.presentQueueFamilyIndex,
             .queueCount = 1,
             .pQueuePriorities = &priority,
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
@@ -179,30 +264,30 @@ static bool CreateLogicalDevice(VkContext* context) {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
     };
 
-    if (vkCreateDevice(context->physicalDevice, &deviceCreateInfo, NULL, &context->logicalDevice) != VK_SUCCESS) {
+    if (vkCreateDevice(vkContext.physicalDevice, &deviceCreateInfo, NULL, &vkContext.logicalDevice) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create Vulkan physical device\n");
         return false;
     }
 
-    vkGetDeviceQueue(context->logicalDevice, context->graphicsQueueFamilyIndex, 0, &context->graphicsQueue);
-    vkGetDeviceQueue(context->logicalDevice, context->presentQueueFamilyIndex, 0, &context->presentQueue);
+    vkGetDeviceQueue(vkContext.logicalDevice, vkContext.graphicsQueueFamilyIndex, 0, &vkContext.graphicsQueue);
+    vkGetDeviceQueue(vkContext.logicalDevice, vkContext.presentQueueFamilyIndex, 0, &vkContext.presentQueue);
 
     fprintf(stdout, "Created Vulkan logical device\n");
 
     return true;
 }
 
-static void GetVkSwapchainInfo(VkContext* context, VkSwapchainInfo* o_info) {
+static void GetVkSwapchainInfo(VkSwapchainInfo* o_info) {
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(context->physicalDevice, context->surface, &o_info->surfaceCapabilities);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(context->physicalDevice, context->surface, &o_info->formatCount, NULL);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkContext.physicalDevice, vkContext.surface, &o_info->surfaceCapabilities);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(vkContext.physicalDevice, vkContext.surface, &o_info->formatCount, NULL);
     o_info->surfaceFormats = calloc(o_info->formatCount, sizeof(*o_info->surfaceFormats));
 
-    vkGetPhysicalDeviceSurfaceFormatsKHR(context->physicalDevice, context->surface, &o_info->formatCount, o_info->surfaceFormats);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(context->physicalDevice, context->surface, &o_info->presentModesCount, NULL);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(vkContext.physicalDevice, vkContext.surface, &o_info->formatCount, o_info->surfaceFormats);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(vkContext.physicalDevice, vkContext.surface, &o_info->presentModesCount, NULL);
     o_info->surfacePresentModes = calloc(o_info->formatCount, sizeof(*o_info->surfacePresentModes));
 
-    vkGetPhysicalDeviceSurfacePresentModesKHR(context->physicalDevice, context->surface, &o_info->presentModesCount, o_info->surfacePresentModes);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(vkContext.physicalDevice, vkContext.surface, &o_info->presentModesCount, o_info->surfacePresentModes);
 }
 
 VkSurfaceFormatKHR GetVkSwapchainFormat(VkSurfaceFormatKHR* formats, uint32_t formatsCount) {
@@ -269,17 +354,17 @@ static void LogPresentMode(VkPresentModeKHR presentMode) {
     }
 }
 
-static bool CreateVkSwapchain(VkContext* context, VkSwapchain* o_swapchain) {
+static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
 
     VkSwapchainInfo info;
-    GetVkSwapchainInfo(context, &info);
+    GetVkSwapchainInfo(&info);
 
     VkSurfaceFormatKHR format = GetVkSwapchainFormat(info.surfaceFormats, info.formatCount);
     VkPresentModeKHR presentMode = GetVkSwapchainPresentMode(info.surfacePresentModes, info.presentModesCount);
 
     LogPresentMode(presentMode);
 
-    VkExtent2D extent = GetVkSwapchainExtent(&info.surfaceCapabilities, context->windowWidth, context->windowHeight);
+    VkExtent2D extent = GetVkSwapchainExtent(&info.surfaceCapabilities, vkContext.windowWidth, vkContext.windowHeight);
 
     uint32_t imageCount;
     if (DESIRED_IMAGE_COUNT >= info.surfaceCapabilities.minImageCount) {
@@ -299,7 +384,7 @@ static bool CreateVkSwapchain(VkContext* context, VkSwapchain* o_swapchain) {
 
     VkSwapchainCreateInfoKHR swapchainInfo = {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface = context->surface,
+        .surface = vkContext.surface,
         .minImageCount = imageCount,
         .imageFormat = format.format,
         .imageExtent = extent,
@@ -312,13 +397,13 @@ static bool CreateVkSwapchain(VkContext* context, VkSwapchain* o_swapchain) {
         .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
     };
 
-    if (context->graphicsQueueFamilyIndex != context->presentQueueFamilyIndex) {
+    if (vkContext.graphicsQueueFamilyIndex != vkContext.presentQueueFamilyIndex) {
         swapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         swapchainInfo.queueFamilyIndexCount = 2;
 
         uint32_t families[2] = {
-            context->graphicsQueueFamilyIndex,
-            context->presentQueueFamilyIndex
+            vkContext.graphicsQueueFamilyIndex,
+            vkContext.presentQueueFamilyIndex
         };
 
         swapchainInfo.pQueueFamilyIndices = families;
@@ -327,14 +412,14 @@ static bool CreateVkSwapchain(VkContext* context, VkSwapchain* o_swapchain) {
         swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     }
 
-    if (vkCreateSwapchainKHR(context->logicalDevice, &swapchainInfo, NULL, &o_swapchain->swapchainHandle) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(vkContext.logicalDevice, &swapchainInfo, NULL, &o_swapchain->swapchainHandle) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create Vulkan swapchain\n");
         return false;
     }
 
-    vkGetSwapchainImagesKHR(context->logicalDevice, o_swapchain->swapchainHandle, &o_swapchain->imageCount, NULL);
+    vkGetSwapchainImagesKHR(vkContext.logicalDevice, o_swapchain->swapchainHandle, &o_swapchain->imageCount, NULL);
     o_swapchain->images = calloc(o_swapchain->imageCount, sizeof(VkImage));
-    vkGetSwapchainImagesKHR(context->logicalDevice, o_swapchain->swapchainHandle, &o_swapchain->imageCount, o_swapchain->images);
+    vkGetSwapchainImagesKHR(vkContext.logicalDevice, o_swapchain->swapchainHandle, &o_swapchain->imageCount, o_swapchain->images);
 
     o_swapchain->imageViews = calloc(o_swapchain->imageCount, sizeof(VkImageView));
 
@@ -356,7 +441,7 @@ static bool CreateVkSwapchain(VkContext* context, VkSwapchain* o_swapchain) {
             }
         };
 
-        if (!vkCreateImageView(context->logicalDevice, &info, NULL, &o_swapchain->imageViews[i]) == VK_SUCCESS) {
+        if (!vkCreateImageView(vkContext.logicalDevice, &info, NULL, &o_swapchain->imageViews[i]) == VK_SUCCESS) {
             fprintf(stderr, "Failed to create Vulkan swapchain\n");
             return false;
         }
@@ -367,10 +452,10 @@ static bool CreateVkSwapchain(VkContext* context, VkSwapchain* o_swapchain) {
     return true;
 }
 
-static bool CreateRenderPass(VkContext* context) {
+static bool CreateRenderPass() {
 
     const VkAttachmentDescription colorAttachment = {
-        .format = context->swapchain.swapchainFormat,
+        .format = vkContext.swapchain.swapchainFormat,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -410,7 +495,7 @@ static bool CreateRenderPass(VkContext* context) {
         .pDependencies = &dependency
     };
 
-    if (vkCreateRenderPass(context->logicalDevice, &renderPassCreateInfo, NULL, &context->renderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(vkContext.logicalDevice, &renderPassCreateInfo, NULL, &vkContext.renderPass) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create Vulkan render pass\n");
         return false;
     }
@@ -420,7 +505,7 @@ static bool CreateRenderPass(VkContext* context) {
     return true;
 }
 
-static bool CreateFrameBuffers(VkContext* context, VkSwapchain* swapchain) {
+static bool CreateFrameBuffers(VkSwapchain* swapchain) {
 
     swapchain->framebuffers = calloc(swapchain->imageCount, sizeof(VkFramebuffer));
 
@@ -432,7 +517,7 @@ static bool CreateFrameBuffers(VkContext* context, VkSwapchain* swapchain) {
 
         const VkFramebufferCreateInfo framebufferInfo = {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .renderPass = context->renderPass,
+            .renderPass = vkContext.renderPass,
             .attachmentCount = 1,
             .pAttachments = attachments,
             .width = swapchain->dimensions.width,
@@ -440,7 +525,7 @@ static bool CreateFrameBuffers(VkContext* context, VkSwapchain* swapchain) {
             .layers = 1
         };
 
-        if (vkCreateFramebuffer(context->logicalDevice, &framebufferInfo, NULL, &swapchain->framebuffers[i]) != VK_SUCCESS) {
+        if (vkCreateFramebuffer(vkContext.logicalDevice, &framebufferInfo, NULL, &swapchain->framebuffers[i]) != VK_SUCCESS) {
             fprintf(stderr, "Failed to create Vulkan Framebuffer %u\n", i);
             return false;
         }
@@ -452,14 +537,14 @@ static bool CreateFrameBuffers(VkContext* context, VkSwapchain* swapchain) {
     return true;
 }
 
-static bool CreateCommandPool(VkContext* context) {
+static bool CreateCommandPool() {
     const VkCommandPoolCreateInfo poolInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = context->graphicsQueueFamilyIndex
+        .queueFamilyIndex = vkContext.graphicsQueueFamilyIndex
     };
 
-    if (vkCreateCommandPool(context->logicalDevice, &poolInfo, NULL, &context->commandPool) != VK_SUCCESS) {
+    if (vkCreateCommandPool(vkContext.logicalDevice, &poolInfo, NULL, &vkContext.commandPool) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create Vulkan Command pool\n");
         return false;
     }
@@ -469,22 +554,22 @@ static bool CreateCommandPool(VkContext* context) {
     return true;
 }
 
-static bool CreateCommandBuffers(VkContext* context) {
-    context->commandBuffers = calloc(context->swapchain.imageCount, sizeof(VkCommandBuffer));
+static bool CreateCommandBuffers() {
+    vkContext.commandBuffers = calloc(vkContext.swapchain.imageCount, sizeof(VkCommandBuffer));
 
     const VkCommandBufferAllocateInfo allocateInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = context->commandPool,
+        .commandPool = vkContext.commandPool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = context->swapchain.imageCount   
+        .commandBufferCount = vkContext.swapchain.imageCount   
     };
 
-    if (vkAllocateCommandBuffers(context->logicalDevice, &allocateInfo, context->commandBuffers) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(vkContext.logicalDevice, &allocateInfo, vkContext.commandBuffers) != VK_SUCCESS) {
         fprintf(stderr, "Failed to allocate Vulkan command buffers\n");
         return false;
     }
 
-    fprintf(stdout, "Allocated %u Vulkan command buffers\n", context->swapchain.imageCount);
+    fprintf(stdout, "Allocated %u Vulkan command buffers\n", vkContext.swapchain.imageCount);
 
     return true;
 }
@@ -508,7 +593,7 @@ static char* ReadFile(const char* path, size_t* o_size) {
     return buffer;
 }
 
-static VkShaderModule CreateShaderModule(VkContext* context, const char* path) {
+static VkShaderModule CreateShaderModule(const char* path) {
     size_t codeSize;
     char* code = ReadFile(path, &codeSize);
 
@@ -522,7 +607,7 @@ static VkShaderModule CreateShaderModule(VkContext* context, const char* path) {
     };
 
     VkShaderModule shaderModule;
-    VkResult result = vkCreateShaderModule(context->logicalDevice, &shaderModuleCreateInfo, NULL, &shaderModule);
+    VkResult result = vkCreateShaderModule(vkContext.logicalDevice, &shaderModuleCreateInfo, NULL, &shaderModule);
     free(code);
 
     if (result != VK_SUCCESS) {
@@ -604,10 +689,10 @@ static void GetAttributeDescriptions(VkVertexInputAttributeDescription* o_attrib
     };
 }
 
-static bool CreateGraphicsPipeline(VkContext* context) {
+static bool CreateGraphicsPipeline() {
 
-    VkShaderModule vertModule = CreateShaderModule(context, "/media/Vulkan/VkKatzi/shader/compiled/vert.spv");
-    VkShaderModule fragModule = CreateShaderModule(context, "/media/Vulkan/VkKatzi/shader/compiled/frag.spv");
+    VkShaderModule vertModule = CreateShaderModule("/media/Vulkan/VkKatzi/shader/compiled/vert.spv");
+    VkShaderModule fragModule = CreateShaderModule("/media/Vulkan/VkKatzi/shader/compiled/frag.spv");
 
     if (vertModule == VK_NULL_HANDLE || fragModule == VK_NULL_HANDLE) {
         return false;
@@ -655,15 +740,15 @@ static bool CreateGraphicsPipeline(VkContext* context) {
     //const VkViewport viewport = {
     //    .x = 0.0f,
     //    .y = 0.0f,
-    //    .width = (float)context->swapchain.dimensions.width,
-    //    .height = (float)context->swapchain.dimensions.height,
+    //    .width = (float)vkContext->swapchain.dimensions.width,
+    //    .height = (float)vkContext->swapchain.dimensions.height,
     //    .minDepth = 0.0f,
     //    .maxDepth = 1.0f
     //};
 
     //const VkRect2D scissor = {
     //    .offset = {0, 0},
-    //    .extent = context->swapchain.dimensions
+    //    .extent = vkContext->swapchain.dimensions
     //};
 
     const VkDynamicState dynamicStates[] = {
@@ -711,10 +796,10 @@ static bool CreateGraphicsPipeline(VkContext* context) {
     const VkPipelineLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
-        .pSetLayouts = &context->descriptorSetLayout
+        .pSetLayouts = &vkContext.descriptorSetLayout
     };
 
-    if (vkCreatePipelineLayout(context->logicalDevice, &layoutInfo, NULL, &context->pipelineLayout) != VK_SUCCESS) {
+    if (vkCreatePipelineLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.pipelineLayout) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create pipeline layout\n");
         return false;
     }
@@ -729,26 +814,26 @@ static bool CreateGraphicsPipeline(VkContext* context) {
         .pRasterizationState = &rasterizer,
         .pMultisampleState = &multisampling,
         .pColorBlendState = &colorBlending,
-        .layout = context->pipelineLayout,
-        .renderPass = context->renderPass,
+        .layout = vkContext.pipelineLayout,
+        .renderPass = vkContext.renderPass,
         .subpass = 0,
         .pDynamicState = &dynamicState
     };
 
-    if (vkCreateGraphicsPipelines(context->logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &context->graphicsPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(vkContext.logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &vkContext.graphicsPipeline) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create graphics pipeline\n");
         return false;
     }
 
-    vkDestroyShaderModule(context->logicalDevice, vertModule, NULL);
-    vkDestroyShaderModule(context->logicalDevice, fragModule, NULL);
+    vkDestroyShaderModule(vkContext.logicalDevice, vertModule, NULL);
+    vkDestroyShaderModule(vkContext.logicalDevice, fragModule, NULL);
 
     fprintf(stdout, "Created Vulkan graphics pipeline\n");
 
     return true;
 }
 
-static bool CreateSyncObjects(VkContext* context) {
+static bool CreateSyncObjects() {
     const VkSemaphoreCreateInfo semaphoreInfo = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
     };
@@ -759,17 +844,17 @@ static bool CreateSyncObjects(VkContext* context) {
     };
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        if (vkCreateSemaphore(context->logicalDevice, &semaphoreInfo, NULL, &context->imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(context->logicalDevice, &fenceInfo, NULL, &context->inFlightFences[i]) != VK_SUCCESS) {
+        if (vkCreateSemaphore(vkContext.logicalDevice, &semaphoreInfo, NULL, &vkContext.imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateFence(vkContext.logicalDevice, &fenceInfo, NULL, &vkContext.inFlightFences[i]) != VK_SUCCESS) {
                 fprintf(stderr, "Failed to create sync objects for frame %u\n", i);
                 return false;
             }
     }
 
-    context->renderFinishedSemaphores = calloc(context->swapchain.imageCount, sizeof(VkSemaphore));
+    vkContext.renderFinishedSemaphores = calloc(vkContext.swapchain.imageCount, sizeof(VkSemaphore));
 
-    for (uint32_t i = 0; i < context->swapchain.imageCount; i++) {
-        if (vkCreateSemaphore(context->logicalDevice, &semaphoreInfo, NULL, &context->renderFinishedSemaphores[i]) != VK_SUCCESS) {
+    for (uint32_t i = 0; i < vkContext.swapchain.imageCount; i++) {
+        if (vkCreateSemaphore(vkContext.logicalDevice, &semaphoreInfo, NULL, &vkContext.renderFinishedSemaphores[i]) != VK_SUCCESS) {
             fprintf(stderr, "Failed to create render finished semaphores for image %u\n", i);
             return false;
         }
@@ -781,7 +866,7 @@ static bool CreateSyncObjects(VkContext* context) {
     return true;
 }
 
-static bool RecordCommandBuffer(VkContext* context, VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
     const VkCommandBufferBeginInfo beginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
     };
@@ -795,24 +880,24 @@ static bool RecordCommandBuffer(VkContext* context, VkCommandBuffer commandBuffe
 
     const VkRenderPassBeginInfo renderPassInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = context->renderPass,
-        .framebuffer = context->swapchain.framebuffers[imageIndex],
+        .renderPass = vkContext.renderPass,
+        .framebuffer = vkContext.swapchain.framebuffers[imageIndex],
         .renderArea = {
             .offset = {0, 0},
-            .extent = context->swapchain.dimensions
+            .extent = vkContext.swapchain.dimensions
         },
         .clearValueCount = 1,
         .pClearValues = &clearColor
     };
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->graphicsPipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.graphicsPipeline);
 
     const VkViewport viewport = {
         .x = 0.0f,
         .y = 0.0f,
-        .width = (float)context->swapchain.dimensions.width,
-        .height = (float)context->swapchain.dimensions.height,
+        .width = (float)vkContext.swapchain.dimensions.width,
+        .height = (float)vkContext.swapchain.dimensions.height,
         .minDepth = 0.0f,
         .maxDepth = 1.0f
     };
@@ -821,20 +906,20 @@ static bool RecordCommandBuffer(VkContext* context, VkCommandBuffer commandBuffe
 
     const VkRect2D scissor = {
         .offset = { 0, 0},
-        .extent = context->swapchain.dimensions
+        .extent = vkContext.swapchain.dimensions
     };
 
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    VkBuffer vertexBuffers[] = { context->vertexBuffer, context->instanceBuffer };
+    VkBuffer vertexBuffers[] = { vkContext.vertexBuffer, vkContext.instanceBuffer };
     VkDeviceSize offsets[] = { 0, 0 };
 
     vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(commandBuffer, context->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindIndexBuffer(commandBuffer, vkContext.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineLayout, 0, 1, &context->descriptorSet, 0, NULL);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.pipelineLayout, 0, 1, &vkContext.descriptorSet, 0, NULL);
     
-    vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, context->rectangleCount, 0, 0, 0);
+    vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, vkContext.rectangleCount, 0, 0, 0);
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -845,9 +930,9 @@ static bool RecordCommandBuffer(VkContext* context, VkCommandBuffer commandBuffe
     return true;
 }
 
-static uint32_t FindMemoryType(VkContext* context, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memoryProperties;
-    vkGetPhysicalDeviceMemoryProperties(context->physicalDevice, &memoryProperties);
+    vkGetPhysicalDeviceMemoryProperties(vkContext.physicalDevice, &memoryProperties);
 
     for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++) {
         if ((typeFilter & (1 << i)) && 
@@ -860,7 +945,7 @@ static uint32_t FindMemoryType(VkContext* context, uint32_t typeFilter, VkMemory
     return UINT32_MAX;
 }
 
-static bool CreateBuffer(VkContext* context, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* o_buffer, VkDeviceMemory* o_bufferMemory) {
+static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* o_buffer, VkDeviceMemory* o_bufferMemory) {
     const VkBufferCreateInfo bufferInfo = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = size,
@@ -868,15 +953,15 @@ static bool CreateBuffer(VkContext* context, VkDeviceSize size, VkBufferUsageFla
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
 
-    if (vkCreateBuffer(context->logicalDevice, &bufferInfo, NULL, o_buffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(vkContext.logicalDevice, &bufferInfo, NULL, o_buffer) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create buffer\n");
         return false;
     }
 
     VkMemoryRequirements memoryRequirements;
-    vkGetBufferMemoryRequirements(context->logicalDevice, *o_buffer, &memoryRequirements);
+    vkGetBufferMemoryRequirements(vkContext.logicalDevice, *o_buffer, &memoryRequirements);
 
-    uint32_t memoryTypeIndex = FindMemoryType(context, memoryRequirements.memoryTypeBits, properties);
+    uint32_t memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits, properties);
 
     if (memoryTypeIndex == UINT32_MAX) {
         return false;
@@ -888,61 +973,61 @@ static bool CreateBuffer(VkContext* context, VkDeviceSize size, VkBufferUsageFla
         .memoryTypeIndex = memoryTypeIndex
     };
 
-    if (vkAllocateMemory(context->logicalDevice, &allocateInfo, NULL, o_bufferMemory)) {
+    if (vkAllocateMemory(vkContext.logicalDevice, &allocateInfo, NULL, o_bufferMemory)) {
         fprintf(stderr, "Failed to allocate buffer memory\n");
         return false;
     }
 
-    vkBindBufferMemory(context->logicalDevice, *o_buffer, *o_bufferMemory, 0);
+    vkBindBufferMemory(vkContext.logicalDevice, *o_buffer, *o_bufferMemory, 0);
 
     return true;
 }
 
-static bool CreateVertexBuffer(VkContext* context) {
+static bool CreateVertexBuffer() {
 
     const VkDeviceSize bufferSize = sizeof(vertices);
 
-    if (!CreateBuffer(context, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+    if (!CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                       &context->vertexBuffer, &context->vertexBufferMemory)) {
+                       &vkContext.vertexBuffer, &vkContext.vertexBufferMemory)) {
         return false;
     }
 
     void* data;
-    vkMapMemory(context->logicalDevice, context->vertexBufferMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(vkContext.logicalDevice, vkContext.vertexBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, vertices, (size_t)bufferSize);
-    vkUnmapMemory(context->logicalDevice, context->vertexBufferMemory);
+    vkUnmapMemory(vkContext.logicalDevice, vkContext.vertexBufferMemory);
 
     fprintf(stdout, "Created Vulkan vertex buffer\n");
 
     return true;
 }
 
-static bool CreateIndexBuffer(VkContext* context) {
+static bool CreateIndexBuffer() {
     const VkDeviceSize bufferSize = sizeof(indices);
 
-    if (!CreateBuffer(context, bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &context->indexBuffer, &context->indexBufferMemory)) {
+    if (!CreateBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vkContext.indexBuffer, &vkContext.indexBufferMemory)) {
         return false; 
     }
 
     void* data;
-    vkMapMemory(context->logicalDevice, context->indexBufferMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(vkContext.logicalDevice, vkContext.indexBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, indices, (size_t)bufferSize);
-    vkUnmapMemory(context->logicalDevice, context->indexBufferMemory);
+    vkUnmapMemory(vkContext.logicalDevice, vkContext.indexBufferMemory);
 
     fprintf(stdout, "Created Vulkan index buffer\n");
 
     return true;
 }
 
-static bool CreateInstanceBuffer(VkContext* context, uint32_t maxInstances) {
+static bool CreateInstanceBuffer(uint32_t maxInstances) {
     VkDeviceSize bufferSize = sizeof(RectangleInstance) * maxInstances;
 
-    if (!CreateBuffer(context, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &context->instanceBuffer, &context->instanceBufferMemory)) {
+    if (!CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vkContext.instanceBuffer, &vkContext.instanceBufferMemory)) {
         return false;
     }
 
-    context->instanceCapacity = maxInstances;
+    vkContext.instanceCapacity = maxInstances;
 
     fprintf(stdout, "Created Vulkan instance buffer (capacity: %u)\n", maxInstances);
 
@@ -962,7 +1047,7 @@ static void CreateOrthoMatrix(float* o_matrix, float width, float height) {
     o_matrix[15] = 1.0f;
 }
 
-static bool CreateDescriptorSetLayout(VkContext* context) {
+static bool CreateDescriptorSetLayout() {
     const VkDescriptorSetLayoutBinding uboLayoutBinding = {
         .binding = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -976,7 +1061,7 @@ static bool CreateDescriptorSetLayout(VkContext* context) {
         .pBindings = &uboLayoutBinding
     };
 
-    if (vkCreateDescriptorSetLayout(context->logicalDevice, &layoutInfo, NULL, &context->descriptorSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.descriptorSetLayout) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create descriptor set layout\n");
         return false;
     }
@@ -986,60 +1071,60 @@ static bool CreateDescriptorSetLayout(VkContext* context) {
     return true;
 }
 
-static bool CreateUniformBuffer(VkContext* context) {
+static bool CreateUniformBuffer() {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
-    if (!CreateBuffer(context, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &context->uniformBuffer, &context->uniformBufferMemory)) {
+    if (!CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vkContext.uniformBuffer, &vkContext.uniformBufferMemory)) {
         return false;
     }
 
-    vkMapMemory(context->logicalDevice, context->uniformBufferMemory, 0, bufferSize, 0, &context->uniformBufferMapped);
+    vkMapMemory(vkContext.logicalDevice, vkContext.uniformBufferMemory, 0, bufferSize, 0, &vkContext.uniformBufferMapped);
 
     UniformBufferObject ubo;
-    CreateOrthoMatrix(ubo.ortho, (float)context->swapchain.dimensions.width, (float)context->swapchain.dimensions.height);
-    memcpy(context->uniformBufferMapped, &ubo, sizeof(ubo));
+    CreateOrthoMatrix(ubo.ortho, (float)vkContext.swapchain.dimensions.width, (float)vkContext.swapchain.dimensions.height);
+    memcpy(vkContext.uniformBufferMapped, &ubo, sizeof(ubo));
 
     fprintf(stdout, "Created Vulkan uniform buffer\n");
 
     return true;
 }
 
-static void CleanupSwapchain(VkContext* context) { 
-    for (uint32_t i = 0; i < context->swapchain.imageCount; i++) {
-        vkDestroyFramebuffer(context->logicalDevice, context->swapchain.framebuffers[i], NULL);
-        vkDestroyImageView(context->logicalDevice, context->swapchain.imageViews[i], NULL);
+static void CleanupSwapchain() { 
+    for (uint32_t i = 0; i < vkContext.swapchain.imageCount; i++) {
+        vkDestroyFramebuffer(vkContext.logicalDevice, vkContext.swapchain.framebuffers[i], NULL);
+        vkDestroyImageView(vkContext.logicalDevice, vkContext.swapchain.imageViews[i], NULL);
     }
 
-    free(context->swapchain.framebuffers);
-    free(context->swapchain.imageViews);
-    free(context->swapchain.images);
+    free(vkContext.swapchain.framebuffers);
+    free(vkContext.swapchain.imageViews);
+    free(vkContext.swapchain.images);
 
-    vkDestroySwapchainKHR(context->logicalDevice, context->swapchain.swapchainHandle, NULL);
+    vkDestroySwapchainKHR(vkContext.logicalDevice, vkContext.swapchain.swapchainHandle, NULL);
 }
 
-static bool RecreateSwapchain(VkContext* context) {
+static bool RecreateSwapchain() {
     int width = 0;
     int height = 0;
-    glfwGetFramebufferSize(context->window, &width, &height);
+    glfwGetFramebufferSize(vkContext.window, &width, &height);
 
     while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(context->window, &width, &height);
+        glfwGetFramebufferSize(vkContext.window, &width, &height);
         glfwWaitEvents();
     }
 
-    vkDeviceWaitIdle(context->logicalDevice);
+    vkDeviceWaitIdle(vkContext.logicalDevice);
 
-    CleanupSwapchain(context);
+    CleanupSwapchain();
 
-    if (!CreateVkSwapchain(context, &context->swapchain)) {
+    if (!CreateVkSwapchain(&vkContext.swapchain)) {
         return false;
     }
 
-    if (!CreateFrameBuffers(context, &context->swapchain)) {
+    if (!CreateFrameBuffers(&vkContext.swapchain)) {
         return false;
     }
 
-    UniformBufferObject* ubo = (UniformBufferObject*)context->uniformBufferMapped;
+    UniformBufferObject* ubo = (UniformBufferObject*)vkContext.uniformBufferMapped;
     CreateOrthoMatrix(ubo->ortho, (float)width, (float)height);
 
     fprintf(stdout, "Recreated Vulkan swapchain\n");
@@ -1047,7 +1132,7 @@ static bool RecreateSwapchain(VkContext* context) {
     return true;
 }
 
-static bool CreateDescriptorPoolAndSet(VkContext* context) {
+static bool CreateDescriptorPoolAndSet() {
 
     const VkDescriptorPoolSize poolSize = {
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1061,32 +1146,32 @@ static bool CreateDescriptorPoolAndSet(VkContext* context) {
         .maxSets = 1
     };
 
-    if (vkCreateDescriptorPool(context->logicalDevice, &poolInfo, NULL, &context->descriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(vkContext.logicalDevice, &poolInfo, NULL, &vkContext.descriptorPool) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create descriptor pool\n");
         return false;
     }
 
     const VkDescriptorSetAllocateInfo allocateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = context->descriptorPool,
+        .descriptorPool = vkContext.descriptorPool,
         .descriptorSetCount = 1,
-        .pSetLayouts = &context->descriptorSetLayout
+        .pSetLayouts = &vkContext.descriptorSetLayout
     };
 
-    if (vkAllocateDescriptorSets(context->logicalDevice, &allocateInfo, &context->descriptorSet) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(vkContext.logicalDevice, &allocateInfo, &vkContext.descriptorSet) != VK_SUCCESS) {
         fprintf(stderr, "Failed to allocate descriptor set\n");
         return false;
     }
 
     const VkDescriptorBufferInfo bufferInfo = {
-        .buffer = context->uniformBuffer,
+        .buffer = vkContext.uniformBuffer,
         .offset = 0,
         .range = sizeof(UniformBufferObject)
     };
 
     const VkWriteDescriptorSet descriptorWrite = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = context->descriptorSet,
+        .dstSet = vkContext.descriptorSet,
         .dstBinding = 0,
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1094,62 +1179,62 @@ static bool CreateDescriptorPoolAndSet(VkContext* context) {
         .pBufferInfo = &bufferInfo
     };
 
-    vkUpdateDescriptorSets(context->logicalDevice, 1, &descriptorWrite, 0, NULL);
+    vkUpdateDescriptorSets(vkContext.logicalDevice, 1, &descriptorWrite, 0, NULL);
 
     fprintf(stdout, "Created Vulkan descriptor set\n");
 
     return true;
 }
 
-static void UpdateInstanceBuffer(VkContext* context) {
-    VkDeviceSize dataSize = sizeof(RectangleInstance) * context->rectangleCount;
+static void UpdateInstanceBuffer() {
+    VkDeviceSize dataSize = sizeof(RectangleInstance) * vkContext.rectangleCount;
 
     void* data;
-    vkMapMemory(context->logicalDevice, context->instanceBufferMemory, 0, dataSize, 0, &data);
-    memcpy(data, context->rectangles, (size_t)dataSize);
-    vkUnmapMemory(context->logicalDevice, context->instanceBufferMemory);
+    vkMapMemory(vkContext.logicalDevice, vkContext.instanceBufferMemory, 0, dataSize, 0, &data);
+    memcpy(data, vkContext.rectangles, (size_t)dataSize);
+    vkUnmapMemory(vkContext.logicalDevice, vkContext.instanceBufferMemory);
 }
 
-void FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
-    VkContext* context = (VkContext*)glfwGetWindowUserPointer(window);
-    context->frameBufferResized = true;
+static void FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
+    VkContext* vkContext = (VkContext*)glfwGetWindowUserPointer(window);
+    vkContext->frameBufferResized = true;
 }
 
-void DrawFrame(VkContext* context) {
-    vkWaitForFences(context->logicalDevice, 1, &context->inFlightFences[context->currentFrame], VK_TRUE, UINT64_MAX);
+void VKK_Present() {
+    vkWaitForFences(vkContext.logicalDevice, 1, &vkContext.inFlightFences[vkContext.currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
-    VkResult acquireResult = vkAcquireNextImageKHR(context->logicalDevice, context->swapchain.swapchainHandle, UINT64_MAX, context->imageAvailableSemaphores[context->currentFrame], VK_NULL_HANDLE, &imageIndex);
+    VkResult acquireResult = vkAcquireNextImageKHR(vkContext.logicalDevice, vkContext.swapchain.swapchainHandle, UINT64_MAX, vkContext.imageAvailableSemaphores[vkContext.currentFrame], VK_NULL_HANDLE, &imageIndex);
 
     if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
-        RecreateSwapchain(context);
+        RecreateSwapchain();
         return;
     } else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
         fprintf(stderr, "Failed to acquire swapchain image\n");
         return;
     }
 
-    vkResetFences(context->logicalDevice, 1, &context->inFlightFences[context->currentFrame]);
+    vkResetFences(vkContext.logicalDevice, 1, &vkContext.inFlightFences[vkContext.currentFrame]);
 
-    UpdateInstanceBuffer(context);
+    UpdateInstanceBuffer();
 
-    vkResetCommandBuffer(context->commandBuffers[imageIndex], 0);
-    RecordCommandBuffer(context, context->commandBuffers[imageIndex], imageIndex);
+    vkResetCommandBuffer(vkContext.commandBuffers[imageIndex], 0);
+    RecordCommandBuffer(vkContext.commandBuffers[imageIndex], imageIndex);
 
     const VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
     const VkSubmitInfo submitInfo = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &context->imageAvailableSemaphores[context->currentFrame],
+        .pWaitSemaphores = &vkContext.imageAvailableSemaphores[vkContext.currentFrame],
         .pWaitDstStageMask = waitStages,
         .commandBufferCount = 1,
-        .pCommandBuffers = &context->commandBuffers[imageIndex],
+        .pCommandBuffers = &vkContext.commandBuffers[imageIndex],
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &context->renderFinishedSemaphores[imageIndex]
+        .pSignalSemaphores = &vkContext.renderFinishedSemaphores[imageIndex]
     };
 
-    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, context->inFlightFences[context->currentFrame]) != VK_SUCCESS) {
+    if (vkQueueSubmit(vkContext.graphicsQueue, 1, &submitInfo, vkContext.inFlightFences[vkContext.currentFrame]) != VK_SUCCESS) {
         fprintf(stderr, "Failed to submit draw command buffer\n");
         return;
     }
@@ -1157,25 +1242,25 @@ void DrawFrame(VkContext* context) {
     const VkPresentInfoKHR presentInfo = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &context->renderFinishedSemaphores[imageIndex],
+        .pWaitSemaphores = &vkContext.renderFinishedSemaphores[imageIndex],
         .swapchainCount = 1,
-        .pSwapchains = &context->swapchain.swapchainHandle,
+        .pSwapchains = &vkContext.swapchain.swapchainHandle,
         .pImageIndices = &imageIndex
     };
 
-    VkResult presentResult = vkQueuePresentKHR(context->presentQueue, &presentInfo);
+    VkResult presentResult = vkQueuePresentKHR(vkContext.presentQueue, &presentInfo);
 
-    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || context->frameBufferResized) {
-        context->frameBufferResized = false;
-        RecreateSwapchain(context);
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || vkContext.frameBufferResized) {
+        vkContext.frameBufferResized = false;
+        RecreateSwapchain();
     } else if (presentResult != VK_SUCCESS) {
         fprintf(stderr, "Failed to present swapchain image\n");
     }
 
-    context->currentFrame = (context->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void AddRectangle(VkContext* context, Rectangle rectangle) {
+void AddRectangle(Rectangle rectangle) {
 
     RectangleInstance instance = {
         .offset[0] = rectangle.x,
@@ -1189,13 +1274,18 @@ void AddRectangle(VkContext* context, Rectangle rectangle) {
         .color[2] = 0.0f,
     };
 
-    context->rectangles[context->rectangleCount] = instance;
-    context->rectangleCount++;
+    vkContext.rectangles[vkContext.rectangleCount] = instance;
+    vkContext.rectangleCount++;
 }
 
-bool InitVkContext(VkContext* context, GLFWwindow* window) {
+bool VKK_Init(GLFWwindow* window) {
 
-    context->window = window;
+    glfwSetWindowUserPointer(window, &vkContext);
+    glfwSetFramebufferSizeCallback(window, FramebufferResizeCallback);
+
+    vkContext.window = window;
+
+    glfwGetFramebufferSize(window, &vkContext.windowWidth, &vkContext.windowHeight);
 
     uint32_t instanceExtensionsAmount;
     const char** instanceExtensions = glfwGetRequiredInstanceExtensions(&instanceExtensionsAmount);
@@ -1204,86 +1294,86 @@ bool InitVkContext(VkContext* context, GLFWwindow* window) {
     const char* layers[] = { 
         "VK_LAYER_KHRONOS_validation"
     };
-    context->layers = layers;
-    context->layersAmount = 1;
+    vkContext.layers = layers;
+    vkContext.layersAmount = 1;
 #else
-    context->layers = NULL;
-    context->layersAmount = 0;
+    vkContext->layers = NULL;
+    vkContext->layersAmount = 0;
 #endif
 
-    context->extensionsAmount = instanceExtensionsAmount;
-    context->extensions = instanceExtensions;
+    vkContext.extensionsAmount = instanceExtensionsAmount;
+    vkContext.extensions = instanceExtensions;
 
-    if (!CreateInstance(context)) {
+    if (!CreateInstance()) {
         return false;
     }
 
-    if (!CreateVkSurface(context)) {
+    if (!CreateVkSurface()) {
         return false;
     }
 
-    if (!GetPhysicalDevice(context)) {
+    if (!GetPhysicalDevice()) {
         return false;
     }
 
-    if (!CreateLogicalDevice(context)) {
+    if (!CreateLogicalDevice()) {
         return false;
     }
 
-    if (!CreateVkSwapchain(context, &context->swapchain)) {
+    if (!CreateVkSwapchain(&vkContext.swapchain)) {
         return false;
     }
 
-    if (!CreateRenderPass(context)) {
+    if (!CreateRenderPass()) {
         return false;
     }
 
-    if (!CreateDescriptorSetLayout(context)) {
+    if (!CreateDescriptorSetLayout()) {
         return false;
     }
 
-    if (!CreateGraphicsPipeline(context)) {
+    if (!CreateGraphicsPipeline()) {
         return false;
     }
 
-    if (!CreateVertexBuffer(context)) {
+    if (!CreateVertexBuffer()) {
         return false;
     }
 
-    if (!CreateIndexBuffer(context)) {
+    if (!CreateIndexBuffer()) {
         return false;
     }
 
-    if (!CreateFrameBuffers(context, &context->swapchain)) {
+    if (!CreateFrameBuffers(&vkContext.swapchain)) {
         return false;
     }
 
-    if (!CreateCommandPool(context)) {
+    if (!CreateCommandPool()) {
         return false;
     }
 
-    if (!CreateCommandBuffers(context)) {
+    if (!CreateCommandBuffers()) {
         return false;
     }
 
-    if (!CreateSyncObjects(context)) {
+    if (!CreateSyncObjects()) {
         return false;
     }
 
-    if (!CreateUniformBuffer(context)) {
+    if (!CreateUniformBuffer()) {
         return false;
     }
 
-    if (!CreateDescriptorPoolAndSet(context)) {
+    if (!CreateDescriptorPoolAndSet()) {
         return false;
     }
 
-    context->currentFrame = 0;
+    vkContext.currentFrame = 0;
 
     int maxInstances = 100;
-    context->rectangles = malloc(sizeof(RectangleInstance) * maxInstances);
+    vkContext.rectangles = malloc(sizeof(RectangleInstance) * maxInstances);
 
-    context->rectangleCount = 0;
+    vkContext.rectangleCount = 0;
 
     Rectangle rect = {
         .x = 0,
@@ -1292,9 +1382,13 @@ bool InitVkContext(VkContext* context, GLFWwindow* window) {
         .height = 100
     };
 
-    AddRectangle(context, rect);
+    AddRectangle(rect);
 
-    CreateInstanceBuffer(context, maxInstances);
+    CreateInstanceBuffer(maxInstances);
 
     return true;
+}
+
+void VKK_End() {
+    vkDeviceWaitIdle(vkContext.logicalDevice);
 }
