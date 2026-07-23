@@ -21,21 +21,15 @@ typedef struct {
     float position[2];
 } Vertex;
 
-//static const Vertex vertices[] = {
-//    {{-0.5f, -1.0f}, {1.0f, 0.0f, 0.0f}},
-//    {{0.0f, 1.0f},  {0.0f, 1.0f, 0.0f}},
-//    {{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-//
-//    {{0.5f, -1.0f}, {1.0f, 0.0f, 0.0f}},
-//    {{1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-//    {{0.0f, 1.0f},  {0.0f, 1.0f, 0.0f}}
-//};
+typedef struct {
+    float ortho[16];
+} UniformBufferObject;
 
 static const Vertex vertices[] = {
-    {{-0.5f, -0.5f}},
-    {{0.5f, -0.5f}},
-    {{0.5f, 0.5f}},
-    {{-0.5f, 0.5f}},
+    {{-1.0f, -1.0f}},
+    {{1.0f, -1.0f}},
+    {{1.0f, 1.0f}},
+    {{-1.0f, 1.0f}},
 };
 
 static const uint16_t indices[] = {
@@ -706,7 +700,9 @@ static bool CreateGraphicsPipeline(VkContext* context) {
     };
 
     const VkPipelineLayoutCreateInfo layoutInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &context->descriptorSetLayout
     };
 
     if (vkCreatePipelineLayout(context->logicalDevice, &layoutInfo, NULL, &context->pipelineLayout) != VK_SUCCESS) {
@@ -808,6 +804,8 @@ static bool RecordCommandBuffer(VkContext* context, VkCommandBuffer commandBuffe
     vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(commandBuffer, context->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineLayout, 0, 1, &context->descriptorSet, 0, NULL);
+    
     vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, context->rectangleCount, 0, 0, 0);
     vkCmdEndRenderPass(commandBuffer);
 
@@ -923,6 +921,115 @@ static bool CreateInstanceBuffer(VkContext* context, uint32_t maxInstances) {
     return true;
 }
 
+static void CreateOrthoMatrix(float* o_matrix, float width, float height) {
+
+    for (int i = 0; i < 16; i++)   
+        o_matrix[i] = 0.0f;
+    
+    o_matrix[0] = 2.0f / width;
+    o_matrix[5] = 2.0f / height;
+    o_matrix[10] = 1.0f;
+    o_matrix[12] = -1.0f;
+    o_matrix[13] = -1.0f;
+    o_matrix[15] = 1.0f;
+}
+
+static bool CreateDescriptorSetLayout(VkContext* context) {
+    const VkDescriptorSetLayoutBinding uboLayoutBinding = {
+        .binding = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+    };
+
+    const VkDescriptorSetLayoutCreateInfo layoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings = &uboLayoutBinding
+    };
+
+    if (vkCreateDescriptorSetLayout(context->logicalDevice, &layoutInfo, NULL, &context->descriptorSetLayout) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create descriptor set layout\n");
+        return false;
+    }
+
+    fprintf(stdout, "Created Vulkan descriptor set layout\n");
+
+    return true;
+}
+
+static bool CreateUniformBuffer(VkContext* context) {
+    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+    if (!CreateBuffer(context, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &context->uniformBuffer, &context->uniformBufferMemory)) {
+        return false;
+    }
+
+    vkMapMemory(context->logicalDevice, context->uniformBufferMemory, 0, bufferSize, 0, &context->uniformBufferMapped);
+
+    UniformBufferObject ubo;
+    CreateOrthoMatrix(ubo.ortho, (float)context->swapchain.dimensions.width, (float)context->swapchain.dimensions.height);
+    memcpy(context->uniformBufferMapped, &ubo, sizeof(ubo));
+
+    fprintf(stdout, "Created Vulkan uniform buffer\n");
+
+    return true;
+}
+
+static bool CreateDescriptorPoolAndSet(VkContext* context) {
+
+    const VkDescriptorPoolSize poolSize = {
+        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1
+    };
+
+    const VkDescriptorPoolCreateInfo poolInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .poolSizeCount = 1,
+        .pPoolSizes = &poolSize,
+        .maxSets = 1
+    };
+
+    if (vkCreateDescriptorPool(context->logicalDevice, &poolInfo, NULL, &context->descriptorPool) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create descriptor pool\n");
+        return false;
+    }
+
+    const VkDescriptorSetAllocateInfo allocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = context->descriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &context->descriptorSetLayout
+    };
+
+    if (vkAllocateDescriptorSets(context->logicalDevice, &allocateInfo, &context->descriptorSet) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to allocate descriptor set\n");
+        return false;
+    }
+
+    const VkDescriptorBufferInfo bufferInfo = {
+        .buffer = context->uniformBuffer,
+        .offset = 0,
+        .range = sizeof(UniformBufferObject)
+    };
+
+    const VkWriteDescriptorSet descriptorWrite = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = context->descriptorSet,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .pBufferInfo = &bufferInfo
+    };
+
+    vkUpdateDescriptorSets(context->logicalDevice, 1, &descriptorWrite, 0, NULL);
+
+    fprintf(stdout, "Created Vulkan descriptor set\n");
+
+    return true;
+}
+
 static void UpdateInstanceBuffer(VkContext* context) {
     VkDeviceSize dataSize = sizeof(RectangleInstance) * context->rectangleCount;
 
@@ -977,33 +1084,14 @@ void DrawFrame(VkContext* context) {
     context->currentFrame = (context->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-float PixelToNDC_X(float pixelX, float screenWidth) {
-    return (pixelX / screenWidth) * 2.0f - 1.0f;
-}
-
-
-float PixelToNDC_Y(float pixelY, float screenHeight) {
-    return (pixelY / screenHeight) * 2.0f - 1.0f;
-}
-
-
-float PixelWidthToNDC_X(float pixelWidth, float screenWidth) {
-    return (pixelWidth / screenWidth) * 2.0f;
-}
-
-
-float PixelHeightToNDC_Y(float pixelHeight, float screenHeight) {
-    return (pixelHeight / screenHeight) * 2.0f;
-}
-
 void AddRectangle(VkContext* context, Rectangle rectangle) {
 
     RectangleInstance instance = {
-        .offset[0] = PixelToNDC_X(rectangle.x, 1920),
-        .offset[1] = PixelToNDC_Y(rectangle.y, 1080),
+        .offset[0] = rectangle.x,
+        .offset[1] = rectangle.y,
 
-        .scale[0] = PixelWidthToNDC_X(rectangle.width, 1920),
-        .scale[1] = PixelHeightToNDC_Y(rectangle.height, 1080),
+        .scale[0] = rectangle.width,
+        .scale[1] = rectangle.height,
 
         .color[0] = 1.0f,
         .color[1] = 0.0f,
@@ -1016,14 +1104,7 @@ void AddRectangle(VkContext* context, Rectangle rectangle) {
 
 bool InitVkContext(VkContext* context, GLFWwindow* window) {
 
-    int windowWidth;
-    int windowHeight;
-
-    glfwGetWindowSize(window, &windowWidth, &windowHeight);
-
     context->window = window;
-    context->windowWidth = windowWidth;
-    context->windowHeight = windowHeight;
 
     uint32_t instanceExtensionsAmount;
     const char** instanceExtensions = glfwGetRequiredInstanceExtensions(&instanceExtensionsAmount);
@@ -1066,6 +1147,10 @@ bool InitVkContext(VkContext* context, GLFWwindow* window) {
         return false;
     }
 
+    if (!CreateDescriptorSetLayout(context)) {
+        return false;
+    }
+
     if (!CreateGraphicsPipeline(context)) {
         return false;
     }
@@ -1094,6 +1179,14 @@ bool InitVkContext(VkContext* context, GLFWwindow* window) {
         return false;
     }
 
+    if (!CreateUniformBuffer(context)) {
+        return false;
+    }
+
+    if (!CreateDescriptorPoolAndSet(context)) {
+        return false;
+    }
+
     context->currentFrame = 0;
 
     int maxInstances = 100;
@@ -1102,10 +1195,10 @@ bool InitVkContext(VkContext* context, GLFWwindow* window) {
     context->rectangleCount = 0;
 
     Rectangle rect = {
-        .x = 50,
-        .y = 50,
-        .width = 50,
-        .height = 50
+        .x = 0,
+        .y = 0,
+        .width = 100,
+        .height = 100
     };
 
     AddRectangle(context, rect);

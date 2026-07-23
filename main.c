@@ -4,17 +4,19 @@
 #include "include/vulkan.h"
 #include "include/shared.h"
 
-const uint32_t WINDOW_WIDTH = 1080;
-const uint32_t WINDOW_HEIGHT = 720;
+const int WINDOW_WIDTH = 640;
+const int WINDOW_HEIGHT = 480;
 
 int main() {
 
     GLFWwindow* window;
 
+    
     if (!glfwInit())
-        return -1;
-
+    return -1;
+    
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
     window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol", NULL, NULL);
 
     if (!window)
@@ -24,6 +26,14 @@ int main() {
     }
 
     VkContext context;
+
+    int windowWidth;
+    int windowHeight;
+
+    glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+    context.windowWidth = windowWidth;
+    context.windowHeight = windowHeight;
+
     if (!InitVkContext(&context, window)) {
         fprintf(stderr, "Failed to initialize Vulkan context\n");
         exit(1);

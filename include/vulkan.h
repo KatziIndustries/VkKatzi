@@ -73,6 +73,14 @@ typedef struct  {
     VkDeviceMemory instanceBufferMemory;
     uint32_t instanceCapacity;
 
+    VkBuffer uniformBuffer;
+    VkDeviceMemory uniformBufferMemory;
+    void* uniformBufferMapped;
+
+    VkDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorPool descriptorPool;
+    VkDescriptorSet descriptorSet;
+
     RectangleInstance* rectangles;
     uint32_t rectangleCount;
 
