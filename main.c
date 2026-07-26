@@ -15,6 +15,8 @@ GLFWwindow* window;
 
 bool leftMousePressed;
 
+bool e;
+
 int main() {
 
     window = VKK_CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol");
@@ -78,7 +80,7 @@ int main() {
         if (pressed == 0) {
             leftMousePressed = false;
         }
-
+        
         VKK_Draw(vertexBuffer, 7, indexBuffer, 9);
 
 	    VKK_PollEvents();

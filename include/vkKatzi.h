@@ -25,13 +25,6 @@ typedef enum {
 } VKK_BufferUsage;
 
 typedef struct {
-    float x;
-    float y;
-    float width;
-    float height;
-} VKK_Rectangle;
-
-typedef struct {
     float position[2];
     float color[4];
 } Vertex;
@@ -40,7 +33,6 @@ bool VKK_Init(GLFWwindow* window);
 void VKK_End(void);
 
 void VKK_Present(void);
-void VKK_RenderRectangle(VKK_Rectangle rectangle);
 
 VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage);
 void VKK_DestroyBuffer(VKK_Buffer buffer);
