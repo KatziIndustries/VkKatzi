@@ -1,9 +1,9 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdbool.h>
 
-#include "include/vulkan.h"
 #include "include/window.h"
 #include "include/shared.h"
+#include "include/vkKatzi.h"
 
 const int WINDOW_WIDTH = 640;
 const int WINDOW_HEIGHT = 480;
@@ -24,12 +24,28 @@ int main() {
         exit(1);
     }
 
-    VKK_Rectangle rect = {
-        .x = 0,
-        .y = 0,
-        .width = 100,
-        .height = 100
+    static const Vertex vertices[] = {
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f, 1.0f}},
+        {{-0.5f, 0.5f}, {0.0f, 0.0f, 0.0f, 1.0f}},
+
+        {{0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {{1.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}}
     };
+
+    static const uint16_t indices[] = {
+        0, 1, 2, 
+        0, 2, 3,
+        4, 5, 6
+    };
+
+    VKK_Buffer vertexBuffer = VKK_CreateBuffer(sizeof(Vertex) * 7, VKK_BUFFER_USAGE_VERTEX);
+    VKK_WriteBuffer(vertexBuffer, vertices, sizeof(Vertex) * 7, 0);
+
+    VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint16_t) * 9, VKK_BUFFER_USAGE_INDEX);
+    VKK_WriteBuffer(indexBuffer, indices, sizeof(uint16_t) * 9, 0);
 
     double elapsedTime = 0;
     double lastFrameTime = glfwGetTime();
@@ -57,17 +73,20 @@ int main() {
             double mouseY;
 
             glfwGetCursorPos(window, &mouseX, &mouseY);
-            rect.x = mouseX;
-            rect.y = mouseY;
         }
 
         if (pressed == 0) {
             leftMousePressed = false;
         }
 
+        VKK_Draw(vertexBuffer, 7, indexBuffer, 9);
+
 	    VKK_PollEvents();
         VKK_Present();
     }
+
+    VKK_DestroyBuffer(vertexBuffer);
+    VKK_DestroyBuffer(indexBuffer);
 
     VKK_End();
     VKK_TerminateWindowing();

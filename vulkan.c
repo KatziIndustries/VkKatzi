@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
+#include <stdbool.h>
 
-#include "include/vulkan.h"
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
+
 #include "include/shared.h"
-#include "include/rectangle.h"
+#include "include/vkKatzi.h"
 
 const VkPresentModeKHR PREFERRED_PRESENT_MODE = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
 const uint32_t DESIRED_IMAGE_COUNT = 2;
@@ -18,17 +21,13 @@ typedef struct {
 } VkSwapchainInfo;
 
 typedef struct {
-    float position[2];
-} Vertex;
-
-typedef struct {
     float ortho[16];
 } UniformBufferObject;
 
 typedef struct {
     float offset[2];
     float scale[2];
-    float color[3];
+    float color[4];
 } RectangleInstance;
 
 typedef struct {
@@ -45,6 +44,25 @@ typedef struct {
     VkSurfaceFormatKHR surfaceFormat;
     VkPresentModeKHR surfacePresentMode;
 } VkSwapchain;
+
+#define MAX_PENDING_DELETIONS 1024
+
+typedef struct {
+    VKK_Buffer buffer;
+    uint32_t framesUntilDeletion;
+} PendingDeletion;
+
+
+typedef struct {
+    VkBuffer vertexBuffer;
+    uint32_t vertexCount;
+    VkBuffer indexBuffer;
+    uint32_t indexCount;
+} DrawCall;
+
+#define MAX_FRAMES_IN_FLIGHT 2
+
+#define MAX_DRAW_CALLS 1024
 
 typedef struct  {
     VkInstance instance;
@@ -81,6 +99,9 @@ typedef struct  {
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
 
+    DrawCall drawCalls[MAX_DRAW_CALLS];
+    uint32_t drawCallIndex;
+
     VkBuffer instanceBuffers[MAX_FRAMES_IN_FLIGHT];
     VkDeviceMemory instanceBufferMemories[MAX_FRAMES_IN_FLIGHT];
     uint32_t instanceCapacity;
@@ -105,25 +126,26 @@ typedef struct  {
 
     uint32_t currentFrame;
 
+    PendingDeletion pendingDeletions[MAX_PENDING_DELETIONS];
+    uint32_t pendingDeletionCount;
+
     bool frameBufferResized;
 } VkContext;
 
-static const Vertex vertices[] = {
-    {{-1.0f, -1.0f}},
-    {{1.0f, -1.0f}},
-    {{1.0f, 1.0f}},
-    {{-1.0f, 1.0f}},
+struct VKK_Buffer_T {
+    VkBuffer handle;
+    VkDeviceMemory memory;
+    VkDeviceSize size;
+    bool isMapped;
+    void* mappedPtr;
 };
-
-static const uint16_t indices[] = {
-    0, 1, 2, 
-    0, 2, 3
-};
-
-#define VERTEX_COUNT (sizeof(vertices) / sizeof(vertices[0]))
-#define INDEX_COUNT (sizeof(indices) / sizeof(indices[0]))
 
 static VkContext vkContext;
+
+static const uint16_t triangleIndices[] = {
+    0, 1, 2, 
+    3, 4, 5, 
+};
 
 static bool CreateInstance() {
 
@@ -637,13 +659,85 @@ static void GetVertexAttributeDescriptions(VkVertexInputAttributeDescription* o_
         .offset = offsetof(Vertex, position)
     };
 
-    //o_attributes[1] = (VkVertexInputAttributeDescription) {
-    //    .binding = 0,
-    //    .location = 1,
-    //    .format = VK_FORMAT_R32G32B32_SFLOAT,
-    //    .offset = offsetof(Vertex, color)
-    //};
+    o_attributes[1] = (VkVertexInputAttributeDescription) {
+        .binding = 0,
+        .location = 1,
+        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+        .offset = offsetof(Vertex, color)
+    };
 }
+
+static void GetBufferUsageFlags(VKK_BufferUsage usage, VkBufferUsageFlags* o_usageFlags, VkMemoryPropertyFlags* o_memoryFlags) {
+    switch (usage) {
+        case VKK_BUFFER_USAGE_VERTEX:
+            *o_usageFlags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            break;
+
+        case VKK_BUFFER_USAGE_INDEX:
+            *o_usageFlags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            break;
+
+        case VKK_BUFFER_USAGE_UNIFORM:
+            *o_usageFlags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            break;
+
+        case VKK_BUFFER_USAGE_STORAGE:
+            *o_usageFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            break;
+
+        case VKK_BUFFER_USAGE_STAGING:
+            *o_usageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            break;
+    }
+}
+
+void VKK_DestroyBuffer(VKK_Buffer buffer) {
+    if (!buffer)
+        return;
+
+    PendingDeletion deletion = {
+        .buffer = buffer,
+        .framesUntilDeletion = MAX_FRAMES_IN_FLIGHT
+    };
+
+    vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
+}
+
+void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t offset) {
+    if (!buffer) {
+        fprintf(stderr, "VKK_WriteBuffer: buffer is NULL\n");
+        return;
+    }
+
+    if (offset + size > buffer->size)  {
+        fprintf(stderr, "VKK_WriteBuffer: write out of bounds (offset %zu + size %zu > buffer size %llu)\n", offset, size, (unsigned long int)buffer->size);
+        return;
+    }
+
+    void* mapped;
+    vkMapMemory(vkContext.logicalDevice, buffer->memory, offset, size, 0, &mapped);
+    memcpy(mapped, data, size);
+    vkUnmapMemory(vkContext.logicalDevice, buffer->memory);
+}
+
+//static VkVertexInputBindingDescription GetBindingDescription(VkVertexInputBindingDescription* o_bindings) {
+//    o_bindings[0] = (VkVertexInputBindingDescription){
+//        .binding = 0,
+//        .stride = sizeof(Vertex),
+//        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+//    };
+//
+//    o_bindings[1] = (VkVertexInputBindingDescription){
+//        .binding = 1,
+//        .stride = sizeof(RectangleInstance),
+//        .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE
+//    };
+//}
 
 static VkVertexInputBindingDescription GetBindingDescription(VkVertexInputBindingDescription* o_bindings) {
     o_bindings[0] = (VkVertexInputBindingDescription){
@@ -651,13 +745,37 @@ static VkVertexInputBindingDescription GetBindingDescription(VkVertexInputBindin
         .stride = sizeof(Vertex),
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
     };
-
-    o_bindings[1] = (VkVertexInputBindingDescription){
-        .binding = 1,
-        .stride = sizeof(RectangleInstance),
-        .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE
-    };
 }
+
+//static void GetAttributeDescriptions(VkVertexInputAttributeDescription* o_attributes) {
+//    o_attributes[0] = (VkVertexInputAttributeDescription){
+//        .binding = 0,
+//        .location = 0,
+//        .format = VK_FORMAT_R32G32_SFLOAT,
+//        .offset = offsetof(Vertex, position)
+//    };
+//
+//    o_attributes[1] = (VkVertexInputAttributeDescription){
+//        .binding = 1,
+//        .location = 1,
+//        .format = VK_FORMAT_R32G32_SFLOAT,
+//        .offset = offsetof(RectangleInstance, offset)
+//    };
+//
+//    o_attributes[2] = (VkVertexInputAttributeDescription){
+//        .binding = 1,
+//        .location = 2,
+//        .format = VK_FORMAT_R32G32_SFLOAT,
+//        .offset = offsetof(RectangleInstance, scale)
+//    };
+//
+//    o_attributes[3] = (VkVertexInputAttributeDescription){
+//        .binding = 1,
+//        .location = 3,
+//        .format = VK_FORMAT_R32G32B32_SFLOAT,
+//        .offset = offsetof(RectangleInstance, color)
+//    };
+//}
 
 static void GetAttributeDescriptions(VkVertexInputAttributeDescription* o_attributes) {
     o_attributes[0] = (VkVertexInputAttributeDescription){
@@ -668,24 +786,10 @@ static void GetAttributeDescriptions(VkVertexInputAttributeDescription* o_attrib
     };
 
     o_attributes[1] = (VkVertexInputAttributeDescription){
-        .binding = 1,
+        .binding = 0,
         .location = 1,
-        .format = VK_FORMAT_R32G32_SFLOAT,
-        .offset = offsetof(RectangleInstance, offset)
-    };
-
-    o_attributes[2] = (VkVertexInputAttributeDescription){
-        .binding = 1,
-        .location = 2,
-        .format = VK_FORMAT_R32G32_SFLOAT,
-        .offset = offsetof(RectangleInstance, scale)
-    };
-
-    o_attributes[3] = (VkVertexInputAttributeDescription){
-        .binding = 1,
-        .location = 3,
-        .format = VK_FORMAT_R32G32B32_SFLOAT,
-        .offset = offsetof(RectangleInstance, color)
+        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+        .offset = offsetof(Vertex, color)
     };
 }
 
@@ -718,17 +822,17 @@ static bool CreateGraphicsPipeline() {
     //VkVertexInputAttributeDescription attributeDescriptions[2];
     //GetVertexAttributeDescriptions(attributeDescriptions);
 
-    VkVertexInputBindingDescription bindingDescriptions[2];
+    VkVertexInputBindingDescription bindingDescriptions[1];
     GetBindingDescription(bindingDescriptions);
 
-    VkVertexInputAttributeDescription attributeDescription[4];
+    VkVertexInputAttributeDescription attributeDescription[2];
     GetAttributeDescriptions(attributeDescription);
 
     const VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 2,
+        .vertexBindingDescriptionCount = 1,
         .pVertexBindingDescriptions = bindingDescriptions,
-        .vertexAttributeDescriptionCount = 4,
+        .vertexAttributeDescriptionCount = 2,
         .pVertexAttributeDescriptions = attributeDescription
     };
 
@@ -917,17 +1021,35 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
 
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    if (vkContext.rectangleCount > 0) {
-        VkBuffer vertexBuffers[] = { vkContext.vertexBuffer, vkContext.instanceBuffers[vkContext.currentFrame] };
-        VkDeviceSize offsets[] = { 0, 0 };
+    //if (vkContext.rectangleCount > 0) {
+    //    VkBuffer vertexBuffers[] = { vkContext.vertexBuffer, vkContext.instanceBuffers[vkContext.currentFrame] };
+    //    VkDeviceSize offsets[] = { 0, 0 };
 
-        vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, vkContext.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    //    vkCmdBindVertexBuffers(commandBuffer, 0, 2, vertexBuffers, offsets);
+    //    vkCmdBindIndexBuffer(commandBuffer, vkContext.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.pipelineLayout, 0, 1, &vkContext.descriptorSet, 0, NULL);
+    //    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.pipelineLayout, 0, 1, &vkContext.descriptorSet, 0, NULL);
     
-        vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, vkContext.rectangleCount, 0, 0, 0);
+    //    vkCmdDrawIndexed(commandBuffer, INDEX_COUNT, vkContext.rectangleCount, 0, 0, 0);
+    //}
+
+    if (vkContext.drawCallIndex > 0) {
+        VkDeviceSize offsets[] = { 0 };
+
+        for (uint32_t i = 0; i < vkContext.drawCallIndex; i++) {
+            VkBuffer vertexBuffer = vkContext.drawCalls[i].vertexBuffer;
+            VkBuffer indexBuffer = vkContext.drawCalls[i].indexBuffer;
+
+            vkCmdBindVertexBuffers(commandBuffer, 0, vkContext.drawCallIndex, &vertexBuffer, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.pipelineLayout, 0, 1, &vkContext.descriptorSet, 0, NULL);
+            vkCmdDrawIndexed(commandBuffer, vkContext.drawCalls[i].indexCount, 1, 0, 0, 0);
+        }
+
     }
+
+    vkContext.drawCallIndex = 0;
 
     vkCmdEndRenderPass(commandBuffer);
 
@@ -937,6 +1059,18 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     }
 
     return true;
+}
+
+void VKK_Draw(VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount) {
+
+    DrawCall drawCall = {
+        .vertexBuffer = vertexBuffer->handle,
+        .indexBuffer = indexBuffer->handle,
+        .vertexCount = vertexCount,
+        .indexCount = indexCount
+    };
+
+    vkContext.drawCalls[vkContext.drawCallIndex++] = drawCall;
 }
 
 static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -988,43 +1122,6 @@ static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
     }
 
     vkBindBufferMemory(vkContext.logicalDevice, *o_buffer, *o_bufferMemory, 0);
-
-    return true;
-}
-
-static bool CreateVertexBuffer() {
-
-    const VkDeviceSize bufferSize = sizeof(vertices);
-
-    if (!CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                       &vkContext.vertexBuffer, &vkContext.vertexBufferMemory)) {
-        return false;
-    }
-
-    void* data;
-    vkMapMemory(vkContext.logicalDevice, vkContext.vertexBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, vertices, (size_t)bufferSize);
-    vkUnmapMemory(vkContext.logicalDevice, vkContext.vertexBufferMemory);
-
-    fprintf(stdout, "Created Vulkan vertex buffer\n");
-
-    return true;
-}
-
-static bool CreateIndexBuffer() {
-    const VkDeviceSize bufferSize = sizeof(indices);
-
-    if (!CreateBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vkContext.indexBuffer, &vkContext.indexBufferMemory)) {
-        return false; 
-    }
-
-    void* data;
-    vkMapMemory(vkContext.logicalDevice, vkContext.indexBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, indices, (size_t)bufferSize);
-    vkUnmapMemory(vkContext.logicalDevice, vkContext.indexBufferMemory);
-
-    fprintf(stdout, "Created Vulkan index buffer\n");
 
     return true;
 }
@@ -1143,6 +1240,25 @@ static bool RecreateSwapchain() {
     return true;
 }
 
+VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage) {
+
+    VkBufferUsageFlags usageFlags;
+    VkMemoryPropertyFlags memoryFlags;
+    GetBufferUsageFlags(usage, &usageFlags, &memoryFlags);
+
+    VKK_Buffer buffer = malloc(sizeof(struct VKK_Buffer_T));
+    buffer->size = (VkDeviceSize)size;
+    buffer->isMapped = false;
+    buffer->mappedPtr = NULL;
+
+    if (!CreateBuffer(buffer->size, usageFlags, memoryFlags, &buffer->handle, &buffer->memory)) {
+        fprintf(stderr, "VKK_CreateBuffer: Failed to create buffer\n");
+        return NULL;
+    }
+
+    return buffer;
+}
+
 static bool CreateDescriptorPoolAndSet() {
 
     const VkDescriptorPoolSize poolSize = {
@@ -1215,6 +1331,35 @@ static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
     vkContext->frameBufferResized = true;
 }
 
+static void DestroyBuffer(VKK_Buffer buffer) {
+    vkDestroyBuffer(vkContext.logicalDevice, buffer->handle, NULL);
+    vkFreeMemory(vkContext.logicalDevice, buffer->memory, NULL);
+    free(buffer);
+}
+
+static void ProcessPendingDeletions() {
+    for (int i = 0; i < vkContext.pendingDeletionCount;) {
+        vkContext.pendingDeletions[i].framesUntilDeletion--;
+
+        if (vkContext.pendingDeletions[i].framesUntilDeletion <= 0) {
+            VKK_Buffer buffer = vkContext.pendingDeletions[i].buffer;
+
+            DestroyBuffer(buffer);
+
+            vkContext.pendingDeletions[i] = vkContext.pendingDeletions[--vkContext.pendingDeletionCount];
+        } else {
+            i++;
+        }
+    }
+}
+
+static void ProcessPendingDeletionsImmediate() {
+    for (int i = 0; i < vkContext.pendingDeletionCount; i++) {
+        VKK_Buffer buffer = vkContext.pendingDeletions[i].buffer;
+        DestroyBuffer(buffer);
+    }
+}
+
 void VKK_Present() {
     vkWaitForFences(vkContext.logicalDevice, 1, &vkContext.inFlightFences[vkContext.currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -1272,7 +1417,10 @@ void VKK_Present() {
         fprintf(stderr, "Failed to present swapchain image\n");
     }
 
+    ProcessPendingDeletions();
+
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    vkContext.rectangleCount = 0;
 }
 
 void VKK_RenderRectangle(VKK_Rectangle rectangle) {
@@ -1292,6 +1440,7 @@ void VKK_RenderRectangle(VKK_Rectangle rectangle) {
         .color[0] = 1.0f,
         .color[1] = 0.0f,
         .color[2] = 0.0f,
+        .color[3] = 0.5f,
     };
 
     vkContext.rectangles[vkContext.rectangleCount] = instance;
@@ -1356,14 +1505,6 @@ bool VKK_Init(GLFWwindow* window) {
         return false;
     }
 
-    if (!CreateVertexBuffer()) {
-        return false;
-    }
-
-    if (!CreateIndexBuffer()) {
-        return false;
-    }
-
     if (!CreateFrameBuffers(&vkContext.swapchain)) {
         return false;
     }
@@ -1390,7 +1531,7 @@ bool VKK_Init(GLFWwindow* window) {
 
     vkContext.currentFrame = 0;
 
-    int maxInstances = 10000;
+    int maxInstances = 1000;
     vkContext.rectangles = malloc(sizeof(RectangleInstance) * maxInstances);
 
     vkContext.rectangleCount = 0;
@@ -1407,6 +1548,8 @@ void VKK_End() {
 
     vkDestroyDescriptorPool(vkContext.logicalDevice, vkContext.descriptorPool, NULL);
     vkDestroyDescriptorSetLayout(vkContext.logicalDevice, vkContext.descriptorSetLayout, NULL);
+
+    ProcessPendingDeletionsImmediate();
 
     vkDestroyBuffer(vkContext.logicalDevice, vkContext.uniformBuffer, NULL);
     vkFreeMemory(vkContext.logicalDevice, vkContext.uniformBufferMemory, NULL);
