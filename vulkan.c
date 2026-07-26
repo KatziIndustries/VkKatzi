@@ -9,8 +9,8 @@
 #include "include/shared.h"
 #include "include/vkKatzi.h"
 
-const VkPresentModeKHR PREFERRED_PRESENT_MODE = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
-const uint32_t DESIRED_IMAGE_COUNT = 2;
+VkPresentModeKHR PREFERRED_PRESENT_MODE;
+uint32_t DESIRED_IMAGE_COUNT = 0;
 
 typedef struct {
     VkSurfaceFormatKHR* surfaceFormats;
@@ -96,9 +96,7 @@ typedef struct  {
     DrawCall drawCalls[MAX_DRAW_CALLS];
     uint32_t drawCallIndex;
 
-    VkBuffer uniformBuffer;
-    VkDeviceMemory uniformBufferMemory;
-    void* uniformBufferMapped;
+    VKK_Buffer uniformBuffer;
 
     VkDescriptorSetLayout descriptorSetLayout;
     VkDescriptorPool descriptorPool;
@@ -128,6 +126,7 @@ struct VKK_Buffer_T {
 };
 
 static VkContext vkContext;
+static float mousePosition[2];
 
 static bool CreateInstance() {
 
@@ -311,6 +310,7 @@ VkPresentModeKHR GetVkSwapchainPresentMode(VkPresentModeKHR* modes, uint32_t mod
         }
     }
 
+    fprintf(stderr, "Couldn't use preferred present mode, defaulting to fifo\n");
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
@@ -329,27 +329,27 @@ VkExtent2D GetVkSwapchainExtent(const VkSurfaceCapabilitiesKHR* capabilities, ui
 static void LogPresentMode(VkPresentModeKHR presentMode) {
     switch (presentMode) {
         case VK_PRESENT_MODE_FIFO_KHR:
-            fprintf(stdout, "Using present mode: FIFO_KHR\n");
+            fprintf(stdout, "Using present mode: FIFO\n");
             break;
 
         case VK_PRESENT_MODE_FIFO_LATEST_READY_EXT:
-            fprintf(stdout, "Using present mode: FIFO_LATEST_READY_(EXT/KHR)\n");
+            fprintf(stdout, "Using present mode: FIFO_LATEST_READY\n");
             break;
 
         case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
-            fprintf(stdout, "Using present mode: FIFO_RELAXED_KHR\n");
+            fprintf(stdout, "Using present mode: FIFO_RELAXED\n");
             break;
 
         case VK_PRESENT_MODE_IMMEDIATE_KHR:
-            fprintf(stdout, "Using present mode: IMMEDIATE_KHR\n");
+            fprintf(stdout, "Using present mode: IMMEDIATE\n");
             break;
 
         case VK_PRESENT_MODE_MAILBOX_KHR:
-            fprintf(stdout, "Using present mode: MAILBOX_KHR\n");
+            fprintf(stdout, "Using present mode: MAILBOX\n");
             break;
 
         case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR:
-            fprintf(stdout, "Using present mode: SHARED_CONTINUOUS_REFRESH_KHR\n");
+            fprintf(stdout, "Using present mode: SHARED_CONTINUOUS_REFRESH\n");
             break;
 
         case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR:
@@ -622,33 +622,6 @@ static VkShaderModule CreateShaderModule(const char* path) {
     return shaderModule;
 }
 
-
-//probably describes how to bind a single vertex with its size and stuff idrk
-static VkVertexInputBindingDescription GetVertexBindingDescription(void) {
-    return (VkVertexInputBindingDescription) {
-        .binding = 0,
-        .stride = sizeof(Vertex),
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-    };
-}
-
-//Describes what attributes (variables) of the Vertex struct are what
-static void GetVertexAttributeDescriptions(VkVertexInputAttributeDescription* o_attributes) {
-    o_attributes[0] = (VkVertexInputAttributeDescription) {
-        .binding = 0,
-        .location = 0,
-        .format = VK_FORMAT_R32G32_SFLOAT,
-        .offset = offsetof(Vertex, position)
-    };
-
-    o_attributes[1] = (VkVertexInputAttributeDescription) {
-        .binding = 0,
-        .location = 1,
-        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        .offset = offsetof(Vertex, color)
-    };
-}
-
 static void GetBufferUsageFlags(VKK_BufferUsage usage, VkBufferUsageFlags* o_usageFlags, VkMemoryPropertyFlags* o_memoryFlags) {
     switch (usage) {
         case VKK_BUFFER_USAGE_VERTEX:
@@ -682,6 +655,11 @@ void VKK_DestroyBuffer(VKK_Buffer buffer) {
     if (!buffer)
         return;
 
+    if (vkContext.pendingDeletionCount >= MAX_PENDING_DELETIONS) {
+        fprintf(stderr, "Max pending deletions exceeded\n");
+        return;
+    }
+
     PendingDeletion deletion = {
         .buffer = buffer,
         .framesUntilDeletion = MAX_FRAMES_IN_FLIGHT
@@ -707,7 +685,7 @@ void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t of
     vkUnmapMemory(vkContext.logicalDevice, buffer->memory);
 }
 
-static VkVertexInputBindingDescription GetBindingDescription(VkVertexInputBindingDescription* o_bindings) {
+static void GetBindingDescription(VkVertexInputBindingDescription* o_bindings) {
     o_bindings[0] = (VkVertexInputBindingDescription){
         .binding = 0,
         .stride = sizeof(Vertex),
@@ -769,9 +747,10 @@ static bool CreateGraphicsPipeline() {
         .pVertexAttributeDescriptions = attributeDescription
     };
 
+    VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     const VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+        .topology = topology,
     };
 
     const VkDynamicState dynamicStates[] = {
@@ -822,10 +801,18 @@ static bool CreateGraphicsPipeline() {
         .pAttachments = &colorBlendAttachment
     };
 
+    const VkPushConstantRange pushConstantRange = {
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        .offset = 0,
+        .size = sizeof(float) * 2
+    };
+
     const VkPipelineLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
-        .pSetLayouts = &vkContext.descriptorSetLayout
+        .pSetLayouts = &vkContext.descriptorSetLayout,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &pushConstantRange
     };
 
     if (vkCreatePipelineLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.pipelineLayout) != VK_SUCCESS) {
@@ -931,26 +918,28 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
         .maxDepth = 1.0f
     };
 
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
     const VkRect2D scissor = {
         .offset = { 0, 0},
         .extent = vkContext.swapchain.dimensions
     };
-
+    
+    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+    vkCmdPushConstants(commandBuffer, vkContext.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 2, mousePosition);
+
     if (vkContext.drawCallIndex > 0) {
-        VkDeviceSize offsets[] = { 0 };
+
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.pipelineLayout, 0, 1, &vkContext.descriptorSet, 0, NULL);
 
         for (uint32_t i = 0; i < vkContext.drawCallIndex; i++) {
             VkBuffer vertexBuffer = vkContext.drawCalls[i].vertexBuffer;
             VkBuffer indexBuffer = vkContext.drawCalls[i].indexBuffer;
+            VkDeviceSize offset = 0;
 
-            vkCmdBindVertexBuffers(commandBuffer, 0, vkContext.drawCallIndex, &vertexBuffer, offsets);
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
             vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
         
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.pipelineLayout, 0, 1, &vkContext.descriptorSet, 0, NULL);
             vkCmdDrawIndexed(commandBuffer, vkContext.drawCalls[i].indexCount, 1, 0, 0, 0);
         }
 
@@ -969,6 +958,11 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
 }
 
 void VKK_Draw(VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount) {
+
+    if (vkContext.drawCallIndex >= MAX_DRAW_CALLS) {
+        fprintf(stderr, "Max draw calls (%d) in frame reached, dropping draw call\n", MAX_DRAW_CALLS);
+        return;
+    }
 
     DrawCall drawCall = {
         .vertexBuffer = vertexBuffer->handle,
@@ -1071,17 +1065,18 @@ static bool CreateDescriptorSetLayout() {
 }
 
 static bool CreateUniformBuffer() {
-    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
-    if (!CreateBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vkContext.uniformBuffer, &vkContext.uniformBufferMemory)) {
+    vkContext.uniformBuffer = VKK_CreateBuffer(sizeof(UniformBufferObject), VKK_BUFFER_USAGE_UNIFORM);
+
+    if (!vkContext.uniformBuffer) {
+        fprintf(stderr, "Failed to create Vulkan uniform buffer\n");
         return false;
     }
 
-    vkMapMemory(vkContext.logicalDevice, vkContext.uniformBufferMemory, 0, bufferSize, 0, &vkContext.uniformBufferMapped);
-
     UniformBufferObject ubo;
     CreateOrthoMatrix(ubo.ortho, (float)vkContext.swapchain.dimensions.width, (float)vkContext.swapchain.dimensions.height);
-    memcpy(vkContext.uniformBufferMapped, &ubo, sizeof(ubo));
+
+    VKK_WriteBuffer(vkContext.uniformBuffer, &ubo, sizeof(ubo), 0);
 
     fprintf(stdout, "Created Vulkan uniform buffer\n");
 
@@ -1102,6 +1097,7 @@ static void CleanupSwapchain() {
 }
 
 static bool RecreateSwapchain() {
+
     int width = 0;
     int height = 0;
     glfwGetFramebufferSize(vkContext.window, &width, &height);
@@ -1123,8 +1119,9 @@ static bool RecreateSwapchain() {
         return false;
     }
 
-    UniformBufferObject* ubo = (UniformBufferObject*)vkContext.uniformBufferMapped;
-    CreateOrthoMatrix(ubo->ortho, (float)width, (float)height);
+    UniformBufferObject ubo;
+    CreateOrthoMatrix(ubo.ortho, (float)width, (float)height);
+    VKK_WriteBuffer(vkContext.uniformBuffer, &ubo, sizeof(ubo), 0);
 
     fprintf(stdout, "Recreated Vulkan swapchain\n");
 
@@ -1144,6 +1141,7 @@ VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage) {
 
     if (!CreateBuffer(buffer->size, usageFlags, memoryFlags, &buffer->handle, &buffer->memory)) {
         fprintf(stderr, "VKK_CreateBuffer: Failed to create buffer\n");
+        free(buffer);
         return NULL;
     }
 
@@ -1182,7 +1180,7 @@ static bool CreateDescriptorPoolAndSet() {
     }
 
     const VkDescriptorBufferInfo bufferInfo = {
-        .buffer = vkContext.uniformBuffer,
+        .buffer = vkContext.uniformBuffer->handle,
         .offset = 0,
         .range = sizeof(UniformBufferObject)
     };
@@ -1216,7 +1214,7 @@ static void DestroyBuffer(VKK_Buffer buffer) {
 }
 
 static void ProcessPendingDeletions() {
-    for (int i = 0; i < vkContext.pendingDeletionCount;) {
+    for (uint32_t i = 0; i < vkContext.pendingDeletionCount;) {
         vkContext.pendingDeletions[i].framesUntilDeletion--;
 
         if (vkContext.pendingDeletions[i].framesUntilDeletion <= 0) {
@@ -1232,10 +1230,15 @@ static void ProcessPendingDeletions() {
 }
 
 static void ProcessPendingDeletionsImmediate() {
-    for (int i = 0; i < vkContext.pendingDeletionCount; i++) {
+    for (uint32_t i = 0; i < vkContext.pendingDeletionCount; i++) {
         VKK_Buffer buffer = vkContext.pendingDeletions[i].buffer;
         DestroyBuffer(buffer);
     }
+}
+
+void VKK_SetMousePosition(float x, float y) {
+    mousePosition[0] = x;
+    mousePosition[1] = y;
 }
 
 void VKK_Present() {
@@ -1298,7 +1301,10 @@ void VKK_Present() {
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-bool VKK_Init(GLFWwindow* window) {
+bool VKK_Init(GLFWwindow* window, VKK_Config config) {
+
+    PREFERRED_PRESENT_MODE = config.presentMode;
+    DESIRED_IMAGE_COUNT = config.imageBufferSize;
 
     glfwSetWindowUserPointer(window, &vkContext);
     glfwSetFramebufferSizeCallback(window, FramebufferResizeCallback);
@@ -1310,16 +1316,16 @@ bool VKK_Init(GLFWwindow* window) {
     uint32_t instanceExtensionsAmount;
     const char** instanceExtensions = glfwGetRequiredInstanceExtensions(&instanceExtensionsAmount);
 
-#ifdef DEBUG
-    const char* layers[] = { 
-        "VK_LAYER_KHRONOS_validation"
-    };
-    vkContext.layers = layers;
-    vkContext.layersAmount = 1;
-#else
-    vkContext->layers = NULL;
-    vkContext->layersAmount = 0;
-#endif
+    if (config.enableValidationLayers) {
+        const char* layers[] = { 
+            "VK_LAYER_KHRONOS_validation"
+        };
+        vkContext.layers = layers;
+        vkContext.layersAmount = 1;
+    } else {
+        vkContext.layers = NULL;
+        vkContext.layersAmount = 0;
+    }
 
     vkContext.extensionsAmount = instanceExtensionsAmount;
     vkContext.extensions = instanceExtensions;
@@ -1393,10 +1399,9 @@ void VKK_End() {
     vkDestroyDescriptorPool(vkContext.logicalDevice, vkContext.descriptorPool, NULL);
     vkDestroyDescriptorSetLayout(vkContext.logicalDevice, vkContext.descriptorSetLayout, NULL);
 
-    ProcessPendingDeletionsImmediate();
+    VKK_DestroyBuffer(vkContext.uniformBuffer);
 
-    vkDestroyBuffer(vkContext.logicalDevice, vkContext.uniformBuffer, NULL);
-    vkFreeMemory(vkContext.logicalDevice, vkContext.uniformBufferMemory, NULL);
+    ProcessPendingDeletionsImmediate();
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(vkContext.logicalDevice, vkContext.imageAvailableSemaphores[i], NULL);

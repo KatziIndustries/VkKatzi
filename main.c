@@ -21,26 +21,36 @@ int main() {
 
     window = VKK_CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol");
 
-    if (!VKK_Init(window)) {
+    VKK_Config config = {
+        .presentMode = VKK_PRESENT_MODE_FIFO_RELAXED,
+        .imageBufferSize = 2,
+        .enableValidationLayers = true
+    };
+
+    if (!VKK_Init(window, config)) {
         fprintf(stderr, "Failed to initialize Vulkan context\n");
         exit(1);
     }
 
-    static const Vertex vertices[] = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f, 1.0f}},
-        {{-0.5f, 0.5f}, {0.0f, 0.0f, 0.0f, 1.0f}},
+    //static const Vertex vertices[] = {
+    //    {{0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+    //    {{1.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+    //    {{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}},
 
-        {{0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-        {{1.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-        {{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}}
+    //    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+    //    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+    //    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f, 1.0f}},
+    //    {{-0.5f, 0.5f}, {0.0f, 0.0f, 0.0f, 1.0f}},
+    //};
+
+    static const Vertex vertices[] = {
+        {{960.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {{1920.0f, 1080.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {{0, 1080.0f}, {0.0f, 0.0f, 1.0f, 1.0f}},
     };
 
     static const uint16_t indices[] = {
         0, 1, 2, 
-        0, 2, 3,
-        4, 5, 6
     };
 
     VKK_Buffer vertexBuffer = VKK_CreateBuffer(sizeof(Vertex) * 7, VKK_BUFFER_USAGE_VERTEX);
@@ -71,16 +81,18 @@ int main() {
         if (pressed == 1 && !leftMousePressed) {
             leftMousePressed = true;
             
-            double mouseX;
-            double mouseY;
-
-            glfwGetCursorPos(window, &mouseX, &mouseY);
         }
 
         if (pressed == 0) {
             leftMousePressed = false;
         }
-        
+
+        double mouseX;
+        double mouseY;
+
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+
+        VKK_SetMousePosition(mouseX, mouseY);
         VKK_Draw(vertexBuffer, 7, indexBuffer, 9);
 
 	    VKK_PollEvents();

@@ -24,12 +24,28 @@ typedef enum {
     VKK_BUFFER_USAGE_STAGING,
 } VKK_BufferUsage;
 
+typedef enum {
+    VKK_PRESENT_MODE_IMMEDIATE = 0,
+    VKK_PRESENT_MODE_MAILBOX = 1,
+    VKK_PRESENT_MODE_FIFO = 2,
+    VKK_PRESENT_MODE_FIFO_RELAXED = 3,
+    VKK_PRESENT_MODE_SHARED_DEMAND_REFRESH = 1000111000,
+    VKK_PRESENT_MODE_SHARED_CONTINOUS_REFRESH = 1000111001,
+    VKK_PRESENT_MODE_FIFO_LATEST_READY = 1000361000
+} VKK_PresentMode;
+
 typedef struct {
     float position[2];
     float color[4];
 } Vertex;
 
-bool VKK_Init(GLFWwindow* window);
+typedef struct {
+    VKK_PresentMode presentMode;
+    uint32_t imageBufferSize;
+    bool enableValidationLayers;
+} VKK_Config;
+
+bool VKK_Init(GLFWwindow* window, VKK_Config config);
 void VKK_End(void);
 
 void VKK_Present(void);
@@ -39,6 +55,8 @@ void VKK_DestroyBuffer(VKK_Buffer buffer);
 void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t offset);
 
 void VKK_Draw(VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount);
+
+void VKK_SetMousePosition(float x, float y);
 
 #ifdef __cplusplus
 }
