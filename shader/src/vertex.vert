@@ -14,6 +14,6 @@ layout(push_constant) uniform PushConstants {
 layout(location = 0) out vec4 fragColor; 
 
 void main() {
-    gl_Position = ubo.ortho * vec4(inPosition + pc.mousePosition, 0.0, 1.0);
+    gl_Position = ubo.ortho * vec4(inPosition, 0.0, 1.0);
     fragColor = inColor;
 }

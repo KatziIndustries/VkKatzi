@@ -37,15 +37,32 @@ typedef enum {
 typedef struct {
     float position[2];
     float color[4];
-} Vertex;
+} VKK_Vertex;
 
 typedef struct {
     VKK_PresentMode presentMode;
     uint32_t imageBufferSize;
     bool enableValidationLayers;
+    bool verboseLogging;
 } VKK_Config;
 
-bool VKK_Init(GLFWwindow* window, VKK_Config config);
+typedef struct {
+    char name[256];
+    uint32_t apiVersion;
+    uint32_t driverVersion;
+} VKK_PhysicalDeviceInfo;
+
+typedef struct {
+    bool success;
+    VKK_PhysicalDeviceInfo deviceInfo;
+    VKK_PresentMode presentMode;
+    char presentModeString[256];
+    uint32_t imageBufferSize;
+    uint32_t maxImageBufferSize;
+    uint32_t minImageBufferSize;
+} VKK_InitInfo;
+
+VKK_InitInfo VKK_Init(GLFWwindow* window, VKK_Config config);
 void VKK_End(void);
 
 void VKK_Present(void);

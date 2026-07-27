@@ -8,6 +8,7 @@
 
 #include "include/shared.h"
 #include "include/vkKatzi.h"
+#include "include/logger.h"
 
 VkPresentModeKHR PREFERRED_PRESENT_MODE;
 uint32_t DESIRED_IMAGE_COUNT = 0;
@@ -127,6 +128,7 @@ struct VKK_Buffer_T {
 
 static VkContext vkContext;
 static float mousePosition[2];
+static bool verboseLogging = false;
 
 static bool CreateInstance() {
 
@@ -149,11 +151,13 @@ static bool CreateInstance() {
     };
 
     if (vkCreateInstance(&instanceCreateInfo, NULL, &vkContext.instance) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create Vulkan instance\n");
+        Log("Failed to create Vulkan instance", true);
         return false;
     }
 
-    fprintf(stdout, "Created Vulkan Instance\n");
+    if (verboseLogging) {
+        Log("Created Vulkan instance", false);
+    }
 
     return true;
 }
@@ -162,22 +166,24 @@ static bool CreateVkSurface() {
     glfwCreateWindowSurface(vkContext.instance, vkContext.window, NULL, &vkContext.surface);
 
     if (!vkContext.surface) {
-        fprintf(stderr, "Failed to create Vulkan surface\n");
+        Log("Failed to create Vulkan surface", true);
         return false;
     }
 
-    fprintf(stdout, "Created Vulkan Surface\n");
+    if (verboseLogging) {
+        Log("Created Vulkan surface", false);
+    }
 
     return true;
 }
 
-static bool GetPhysicalDevice() {
+static bool GetPhysicalDevice(VKK_InitInfo* initInfo) {
     uint32_t deviceCount;
 
     vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, NULL);
     
     if (deviceCount == 0) {
-        fprintf(stderr, "No GPUs with Vulkan support found\n");
+        Log("No GPU with Vulkan support found", true);
         return false;
     }
 
@@ -220,13 +226,19 @@ static bool GetPhysicalDevice() {
             VkPhysicalDeviceProperties properties;
             vkGetPhysicalDeviceProperties(device, &properties);
 
-            fprintf(stdout, "Got physical device: (Name: %s, API version: %i, Driver version: %i)\n", properties.deviceName, properties.apiVersion, properties.driverVersion);
+            strncpy(initInfo->deviceInfo.name, properties.deviceName, 256);
+            initInfo->deviceInfo.apiVersion = properties.apiVersion;
+            initInfo->deviceInfo.driverVersion = properties.driverVersion;
+
+            if (verboseLogging) {
+                Log("Got physical device", false);
+            }
 
             return true;
         }
     }
 
-    fprintf(stderr, "Failed to get physical device");
+    Log("Failed to get physical device", true);
 
     return false;
 }
@@ -268,14 +280,16 @@ static bool CreateLogicalDevice() {
     };
 
     if (vkCreateDevice(vkContext.physicalDevice, &deviceCreateInfo, NULL, &vkContext.logicalDevice) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create Vulkan physical device\n");
+        Log("Failed to create physical device", true);
         return false;
     }
 
     vkGetDeviceQueue(vkContext.logicalDevice, vkContext.graphicsQueueFamilyIndex, 0, &vkContext.graphicsQueue);
     vkGetDeviceQueue(vkContext.logicalDevice, vkContext.presentQueueFamilyIndex, 0, &vkContext.presentQueue);
 
-    fprintf(stdout, "Created Vulkan logical device\n");
+    if (verboseLogging) {
+        Log("Created physical device", false);
+    }
 
     return true;
 }
@@ -310,7 +324,7 @@ VkPresentModeKHR GetVkSwapchainPresentMode(VkPresentModeKHR* modes, uint32_t mod
         }
     }
 
-    fprintf(stderr, "Couldn't use preferred present mode, defaulting to fifo\n");
+    Log("Preferred present mode isn't supported, defaulting to FIFO", true);
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
@@ -326,39 +340,33 @@ VkExtent2D GetVkSwapchainExtent(const VkSurfaceCapabilitiesKHR* capabilities, ui
     return extent;
 }
 
-static void LogPresentMode(VkPresentModeKHR presentMode) {
+static char* PresentModeToString(VKK_PresentMode presentMode) {
+
     switch (presentMode) {
-        case VK_PRESENT_MODE_FIFO_KHR:
-            fprintf(stdout, "Using present mode: FIFO\n");
-            break;
+        case VKK_PRESENT_MODE_FIFO:
+            return "FIFO";
 
-        case VK_PRESENT_MODE_FIFO_LATEST_READY_EXT:
-            fprintf(stdout, "Using present mode: FIFO_LATEST_READY\n");
-            break;
+        case VKK_PRESENT_MODE_FIFO_LATEST_READY:
+            return "FIFO_Latest_Ready";
+        
+        case VKK_PRESENT_MODE_FIFO_RELAXED:
+            return "FIFO_Relaxed";
 
-        case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
-            fprintf(stdout, "Using present mode: FIFO_RELAXED\n");
-            break;
+        case VKK_PRESENT_MODE_IMMEDIATE:
+            return "Immediate";
 
-        case VK_PRESENT_MODE_IMMEDIATE_KHR:
-            fprintf(stdout, "Using present mode: IMMEDIATE\n");
-            break;
+        case VKK_PRESENT_MODE_MAILBOX:
+            return "Mailbox";
 
-        case VK_PRESENT_MODE_MAILBOX_KHR:
-            fprintf(stdout, "Using present mode: MAILBOX\n");
-            break;
+        case VKK_PRESENT_MODE_SHARED_CONTINOUS_REFRESH:
+            return "Shared_Continuous_Refresh";
 
-        case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR:
-            fprintf(stdout, "Using present mode: SHARED_CONTINUOUS_REFRESH\n");
-            break;
-
-        case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR:
-            fprintf(stdout, "Using present mode: SHARED_DEMAND_REFRESH\n");
-            break;
+        case VKK_PRESENT_MODE_SHARED_DEMAND_REFRESH:
+            return "Shared_Demand_Refresh";
     }
 }
 
-static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
+static bool CreateVkSwapchain(VkSwapchain* o_swapchain, VKK_InitInfo* initInfo) {
 
     VkSwapchainInfo info;
     GetVkSwapchainInfo(&info);
@@ -366,7 +374,8 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
     VkSurfaceFormatKHR format = GetVkSwapchainFormat(info.surfaceFormats, info.formatCount);
     VkPresentModeKHR presentMode = GetVkSwapchainPresentMode(info.surfacePresentModes, info.presentModesCount);
 
-    LogPresentMode(presentMode);
+    initInfo->presentMode = (VKK_PresentMode)presentMode;
+    strncpy(initInfo->presentModeString, PresentModeToString(presentMode), 256);
 
     VkExtent2D extent = GetVkSwapchainExtent(&info.surfaceCapabilities, vkContext.windowWidth, vkContext.windowHeight);
 
@@ -374,15 +383,12 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
     if (DESIRED_IMAGE_COUNT >= info.surfaceCapabilities.minImageCount) {
         imageCount = DESIRED_IMAGE_COUNT;
     } else {
-        fprintf(stderr, "Desired image count was too low; using min image count\n");
+        Log("Desired image buffer size was too low; using min image count", true);
         imageCount = info.surfaceCapabilities.minImageCount;
     }
 
-    fprintf(stdout, "Using %d images for buffering\n", imageCount);
-    fprintf(stdout, "Min image count: %d\n", info.surfaceCapabilities.minImageCount);
-    fprintf(stdout, "Max image count: %d\n", info.surfaceCapabilities.maxImageCount);
-
     if (info.surfaceCapabilities.maxImageCount > 0 && imageCount > info.surfaceCapabilities.maxImageCount) {
+        Log("Desired image count was too high; using max image count", true);
         imageCount = info.surfaceCapabilities.maxImageCount;
     }
 
@@ -417,7 +423,7 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
     }
 
     if (vkCreateSwapchainKHR(vkContext.logicalDevice, &swapchainInfo, NULL, &o_swapchain->swapchainHandle) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create Vulkan swapchain\n");
+        Log("Failed to create swapchain", true);
         return false;
     }
 
@@ -446,12 +452,18 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
         };
 
         if (!vkCreateImageView(vkContext.logicalDevice, &info, NULL, &o_swapchain->imageViews[i]) == VK_SUCCESS) {
-            fprintf(stderr, "Failed to create Vulkan swapchain\n");
+            Log("Failed to create swapchain", true);
             return false;
         }
     }
 
-    fprintf(stdout, "Created Vulkan swapchain\n");
+    initInfo->imageBufferSize = o_swapchain->imageCount;
+    initInfo->minImageBufferSize = info.surfaceCapabilities.minImageCount;
+    initInfo->maxImageBufferSize = info.surfaceCapabilities.maxImageCount;
+
+    if (verboseLogging) {
+        Log("Created swapchain", false);
+    }
 
     return true;
 }
@@ -500,11 +512,13 @@ static bool CreateRenderPass() {
     };
 
     if (vkCreateRenderPass(vkContext.logicalDevice, &renderPassCreateInfo, NULL, &vkContext.renderPass) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create Vulkan render pass\n");
+        Log("Failed to create render pass", true);
         return false;
     }
 
-    fprintf(stdout, "Created Vulkan render pass\n");
+    if (verboseLogging) {
+        Log("Created render pass", false);
+    }
 
     return true;
 }
@@ -530,13 +544,15 @@ static bool CreateFrameBuffers(VkSwapchain* swapchain) {
         };
 
         if (vkCreateFramebuffer(vkContext.logicalDevice, &framebufferInfo, NULL, &swapchain->framebuffers[i]) != VK_SUCCESS) {
-            fprintf(stderr, "Failed to create Vulkan Framebuffer %u\n", i);
+            fprintf(stderr, "[VKK][ERROR]: Failed to create Vulkan Framebuffer %u\n", i);
             return false;
         }
 
     }
 
-    fprintf(stdout, "Created %u Vulkan framebuffers\n", swapchain->imageCount);
+    if (verboseLogging) {
+        fprintf(stdout, "[VKK][INFO]: Created %u Vulkan framebuffers\n", swapchain->imageCount);
+    }
 
     return true;
 }
@@ -549,11 +565,13 @@ static bool CreateCommandPool() {
     };
 
     if (vkCreateCommandPool(vkContext.logicalDevice, &poolInfo, NULL, &vkContext.commandPool) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create Vulkan Command pool\n");
+        Log("Failed to create command pool", true);
         return false;
     }
 
-    fprintf(stdout, "Created Vulkan command pool\n");
+    if (verboseLogging) {
+        Log("Created command pool", false);
+    }
 
     return true;
 }
@@ -569,11 +587,13 @@ static bool CreateCommandBuffers() {
     };
 
     if (vkAllocateCommandBuffers(vkContext.logicalDevice, &allocateInfo, vkContext.commandBuffers) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to allocate Vulkan command buffers\n");
+        Log("Failed to allocate command buffers", true);
         return false;
     }
 
-    fprintf(stdout, "Allocated %u Vulkan command buffers\n", vkContext.swapchain.imageCount);
+    if (verboseLogging) {
+        fprintf(stdout, "[VKK][INFO]: Allocated %u Vulkan command buffers\n", vkContext.swapchain.imageCount);
+    }
 
     return true;
 }
@@ -615,7 +635,7 @@ static VkShaderModule CreateShaderModule(const char* path) {
     free(code);
 
     if (result != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create Vulkan shader module: %s\n", path);
+        fprintf(stderr, "[VKK][ERROR]: Failed to create Vulkan shader module: %s\n", path);
         return VK_NULL_HANDLE;
     }
 
@@ -656,7 +676,7 @@ void VKK_DestroyBuffer(VKK_Buffer buffer) {
         return;
 
     if (vkContext.pendingDeletionCount >= MAX_PENDING_DELETIONS) {
-        fprintf(stderr, "Max pending deletions exceeded\n");
+        Log("Max pending deletions exceeded", true);
         return;
     }
 
@@ -670,12 +690,12 @@ void VKK_DestroyBuffer(VKK_Buffer buffer) {
 
 void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t offset) {
     if (!buffer) {
-        fprintf(stderr, "VKK_WriteBuffer: buffer is NULL\n");
+        Log("VKK_WriteBuffer: buffer is NULL", true);
         return;
     }
 
     if (offset + size > buffer->size)  {
-        fprintf(stderr, "VKK_WriteBuffer: write out of bounds (offset %zu + size %zu > buffer size %llu)\n", offset, size, (unsigned long int)buffer->size);
+        fprintf(stderr, "[VKK][ERROR]: VKK_WriteBuffer: write out of bounds (offset %zu + size %zu > buffer size %llu)\n", offset, size, (unsigned long int)buffer->size);
         return;
     }
 
@@ -688,7 +708,7 @@ void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t of
 static void GetBindingDescription(VkVertexInputBindingDescription* o_bindings) {
     o_bindings[0] = (VkVertexInputBindingDescription){
         .binding = 0,
-        .stride = sizeof(Vertex),
+        .stride = sizeof(VKK_Vertex),
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
     };
 }
@@ -698,14 +718,14 @@ static void GetAttributeDescriptions(VkVertexInputAttributeDescription* o_attrib
         .binding = 0,
         .location = 0,
         .format = VK_FORMAT_R32G32_SFLOAT,
-        .offset = offsetof(Vertex, position)
+        .offset = offsetof(VKK_Vertex, position)
     };
 
     o_attributes[1] = (VkVertexInputAttributeDescription){
         .binding = 0,
         .location = 1,
         .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        .offset = offsetof(Vertex, color)
+        .offset = offsetof(VKK_Vertex, color)
     };
 }
 
@@ -816,7 +836,7 @@ static bool CreateGraphicsPipeline() {
     };
 
     if (vkCreatePipelineLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.pipelineLayout) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create pipeline layout\n");
+        Log("Failed to create pipeline layout", true);
         return false;
     }
 
@@ -837,14 +857,16 @@ static bool CreateGraphicsPipeline() {
     };
 
     if (vkCreateGraphicsPipelines(vkContext.logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &vkContext.graphicsPipeline) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create graphics pipeline\n");
+        Log("Failed to create graphics pipeline", true);
         return false;
     }
 
     vkDestroyShaderModule(vkContext.logicalDevice, vertModule, NULL);
     vkDestroyShaderModule(vkContext.logicalDevice, fragModule, NULL);
 
-    fprintf(stdout, "Created Vulkan graphics pipeline\n");
+    if (verboseLogging) {
+        Log("Created graphics pipeline", false);
+    }
 
     return true;
 }
@@ -862,7 +884,7 @@ static bool CreateSyncObjects() {
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (vkCreateSemaphore(vkContext.logicalDevice, &semaphoreInfo, NULL, &vkContext.imageAvailableSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(vkContext.logicalDevice, &fenceInfo, NULL, &vkContext.inFlightFences[i]) != VK_SUCCESS) {
-                fprintf(stderr, "Failed to create sync objects for frame %u\n", i);
+                fprintf(stderr, "[VKK][ERROR]: Failed to create sync objects for frame %u\n", i);
                 return false;
             }
     }
@@ -871,13 +893,15 @@ static bool CreateSyncObjects() {
 
     for (uint32_t i = 0; i < vkContext.swapchain.imageCount; i++) {
         if (vkCreateSemaphore(vkContext.logicalDevice, &semaphoreInfo, NULL, &vkContext.renderFinishedSemaphores[i]) != VK_SUCCESS) {
-            fprintf(stderr, "Failed to create render finished semaphores for image %u\n", i);
+            fprintf(stderr, "[VKK][ERROR]: Failed to create render finished semaphores for image %u\n", i);
             return false;
         }
     }
 
 
-    fprintf(stdout, "Created Vulkan sync objects\n");
+    if (verboseLogging) {
+        Log("Created sync objects", false);
+    }
 
     return true;
 }
@@ -888,7 +912,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     };
 
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to begin recording command buffer\n");
+        Log("Failed to begin recording command buffer", true);
         return false;
     }
 
@@ -950,7 +974,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to record command buffer\n");
+        Log("Failed to record command buffer", true);
         return false;
     }
 
@@ -960,7 +984,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
 void VKK_Draw(VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount) {
 
     if (vkContext.drawCallIndex >= MAX_DRAW_CALLS) {
-        fprintf(stderr, "Max draw calls (%d) in frame reached, dropping draw call\n", MAX_DRAW_CALLS);
+        fprintf(stderr, "[VKK][ERROR]: Max draw calls (%d) in frame reached, dropping draw call\n", MAX_DRAW_CALLS);
         return;
     }
 
@@ -985,7 +1009,7 @@ static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags proper
             }
     }
 
-    fprintf(stderr, "Failed to find suitable memory type\n");
+    Log("Failed to find suitable memory type", true);
     return UINT32_MAX;
 }
 
@@ -998,7 +1022,7 @@ static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
     };
 
     if (vkCreateBuffer(vkContext.logicalDevice, &bufferInfo, NULL, o_buffer) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create buffer\n");
+        Log("Failed to create buffer", true);
         return false;
     }
 
@@ -1018,7 +1042,7 @@ static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
     };
 
     if (vkAllocateMemory(vkContext.logicalDevice, &allocateInfo, NULL, o_bufferMemory)) {
-        fprintf(stderr, "Failed to allocate buffer memory\n");
+        Log("Failed to allocate buffer memory", true);
         return false;
     }
 
@@ -1055,11 +1079,13 @@ static bool CreateDescriptorSetLayout() {
     };
 
     if (vkCreateDescriptorSetLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.descriptorSetLayout) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create descriptor set layout\n");
+        Log("Failed to create descriptor set layout", true);
         return false;
     }
 
-    fprintf(stdout, "Created Vulkan descriptor set layout\n");
+    if (verboseLogging) {
+        Log("Created descriptor set layout", false);
+    }
 
     return true;
 }
@@ -1069,7 +1095,7 @@ static bool CreateUniformBuffer() {
     vkContext.uniformBuffer = VKK_CreateBuffer(sizeof(UniformBufferObject), VKK_BUFFER_USAGE_UNIFORM);
 
     if (!vkContext.uniformBuffer) {
-        fprintf(stderr, "Failed to create Vulkan uniform buffer\n");
+        Log("Failed to create uniform buffer", true);
         return false;
     }
 
@@ -1078,7 +1104,9 @@ static bool CreateUniformBuffer() {
 
     VKK_WriteBuffer(vkContext.uniformBuffer, &ubo, sizeof(ubo), 0);
 
-    fprintf(stdout, "Created Vulkan uniform buffer\n");
+    if (verboseLogging) {
+        Log("Created uniform buffer", false);
+    }
 
     return true;
 }
@@ -1111,7 +1139,8 @@ static bool RecreateSwapchain() {
 
     CleanupSwapchain();
 
-    if (!CreateVkSwapchain(&vkContext.swapchain)) {
+    VKK_InitInfo initInfo;
+    if (!CreateVkSwapchain(&vkContext.swapchain, &initInfo)) {
         return false;
     }
 
@@ -1123,7 +1152,9 @@ static bool RecreateSwapchain() {
     CreateOrthoMatrix(ubo.ortho, (float)width, (float)height);
     VKK_WriteBuffer(vkContext.uniformBuffer, &ubo, sizeof(ubo), 0);
 
-    fprintf(stdout, "Recreated Vulkan swapchain\n");
+    if (verboseLogging) {
+        Log("Recreated swapchain", false);
+    }
 
     return true;
 }
@@ -1140,7 +1171,7 @@ VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage) {
     buffer->mappedPtr = NULL;
 
     if (!CreateBuffer(buffer->size, usageFlags, memoryFlags, &buffer->handle, &buffer->memory)) {
-        fprintf(stderr, "VKK_CreateBuffer: Failed to create buffer\n");
+        Log("VKK_CreateBuffer: Failed to create buffer", true);
         free(buffer);
         return NULL;
     }
@@ -1163,7 +1194,7 @@ static bool CreateDescriptorPoolAndSet() {
     };
 
     if (vkCreateDescriptorPool(vkContext.logicalDevice, &poolInfo, NULL, &vkContext.descriptorPool) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create descriptor pool\n");
+        Log("Failed to create descriptor pool", true);
         return false;
     }
 
@@ -1175,7 +1206,7 @@ static bool CreateDescriptorPoolAndSet() {
     };
 
     if (vkAllocateDescriptorSets(vkContext.logicalDevice, &allocateInfo, &vkContext.descriptorSet) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to allocate descriptor set\n");
+        Log("Failed to allocate descriptor set", true);
         return false;
     }
 
@@ -1197,7 +1228,9 @@ static bool CreateDescriptorPoolAndSet() {
 
     vkUpdateDescriptorSets(vkContext.logicalDevice, 1, &descriptorWrite, 0, NULL);
 
-    fprintf(stdout, "Created Vulkan descriptor set\n");
+    if (verboseLogging) {
+        Log("Created descriptor set", false);
+    }
 
     return true;
 }
@@ -1251,7 +1284,7 @@ void VKK_Present() {
         RecreateSwapchain();
         return;
     } else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
-        fprintf(stderr, "Failed to acquire swapchain image\n");
+        Log("Failed to acquire swapchain image", true);
         return;
     }
 
@@ -1274,7 +1307,7 @@ void VKK_Present() {
     };
 
     if (vkQueueSubmit(vkContext.graphicsQueue, 1, &submitInfo, vkContext.inFlightFences[vkContext.currentFrame]) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to submit draw command buffer\n");
+        Log("Failed to submit draw command buffer", true);
         return;
     }
 
@@ -1293,7 +1326,7 @@ void VKK_Present() {
         vkContext.frameBufferResized = false;
         RecreateSwapchain();
     } else if (presentResult != VK_SUCCESS) {
-        fprintf(stderr, "Failed to present swapchain image\n");
+        Log("Failed to present swapchain image", true);
     }
 
     ProcessPendingDeletions();
@@ -1301,7 +1334,13 @@ void VKK_Present() {
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-bool VKK_Init(GLFWwindow* window, VKK_Config config) {
+VKK_InitInfo VKK_Init(GLFWwindow* window, VKK_Config config) {
+
+    VKK_InitInfo initInfo;
+
+    initInfo.success = false;
+
+    verboseLogging = config.verboseLogging;
 
     PREFERRED_PRESENT_MODE = config.presentMode;
     DESIRED_IMAGE_COUNT = config.imageBufferSize;
@@ -1331,64 +1370,65 @@ bool VKK_Init(GLFWwindow* window, VKK_Config config) {
     vkContext.extensions = instanceExtensions;
 
     if (!CreateInstance()) {
-        return false;
+        return initInfo;
     }
 
     if (!CreateVkSurface()) {
-        return false;
+        return initInfo;
     }
 
-    if (!GetPhysicalDevice()) {
-        return false;
+    if (!GetPhysicalDevice(&initInfo)) {
+        return initInfo;
     }
 
     if (!CreateLogicalDevice()) {
-        return false;
+        return initInfo;
     }
 
-    if (!CreateVkSwapchain(&vkContext.swapchain)) {
-        return false;
+    if (!CreateVkSwapchain(&vkContext.swapchain, &initInfo)) {
+        return initInfo;
     }
 
     if (!CreateRenderPass()) {
-        return false;
+        return initInfo;
     }
 
     if (!CreateDescriptorSetLayout()) {
-        return false;
+        return initInfo;
     }
 
     if (!CreateGraphicsPipeline()) {
-        return false;
+        return initInfo;
     }
 
     if (!CreateFrameBuffers(&vkContext.swapchain)) {
-        return false;
+        return initInfo;
     }
 
     if (!CreateCommandPool()) {
-        return false;
+        return initInfo;
     }
 
     if (!CreateCommandBuffers()) {
-        return false;
+        return initInfo;
     }
 
     if (!CreateSyncObjects()) {
-        return false;
+        return initInfo;
     }
 
     if (!CreateUniformBuffer()) {
-        return false;
+        return initInfo;
     }
 
     if (!CreateDescriptorPoolAndSet()) {
-        return false;
+        return initInfo;
     }
 
     vkContext.currentFrame = 0;
 
-    return true;
+    initInfo.success = true;
+    return initInfo;
 }
 
 void VKK_End() {
