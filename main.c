@@ -15,8 +15,6 @@ GLFWwindow* window;
 
 bool leftMousePressed;
 
-bool e;
-
 int main() {
 
     window = VKK_CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol");
@@ -24,7 +22,7 @@ int main() {
     VKK_Config config = {
         .presentMode = VKK_PRESENT_MODE_IMMEDIATE,
         .imageBufferSize = 3,
-        .enableValidationLayers = true,
+        .enableValidationLayers = false,
         .verboseLogging = true
     };
 
@@ -65,11 +63,11 @@ int main() {
     float elapsedTime = 0;
     float elapsedTotal = 0;
     
-    double lastFrameTime = glfwGetTime();
+    double lastFrameTime = VKK_GetTime();
 
     while (!VKK_WindowShouldClose(window))
     {
-        double currentTime = glfwGetTime();
+        double currentTime = VKK_GetTime();
         double deltaTime = currentTime - lastFrameTime;
         lastFrameTime = currentTime;
 
@@ -82,7 +80,7 @@ int main() {
             elapsedTime = 0;
         }
 
-        int pressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+        int pressed = VKK_GetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
 
         if (pressed == 1 && !leftMousePressed) {
             leftMousePressed = true;
@@ -94,7 +92,7 @@ int main() {
 
         double mousePos[2];
 
-        glfwGetCursorPos(window, &mousePos[0], &mousePos[1]);
+        VKK_GetCursorPosition(window, &mousePos[0], &mousePos[1]);
         
         float mousePosF[2] = {
             (float)mousePos[0],

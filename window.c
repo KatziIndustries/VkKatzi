@@ -38,3 +38,15 @@ void VKK_TerminateWindowing() {
 void VKK_PollEvents() {
     glfwPollEvents();
 }
+
+double VKK_GetTime() {
+    return glfwGetTime();
+}
+
+int VKK_GetMouseButton(GLFWwindow* window, int button) {
+    return glfwGetMouseButton(window, button);
+}
+
+void VKK_GetCursorPosition(GLFWwindow* window, double* x, double* y) {
+    glfwGetCursorPos(window, x, y);
+}
