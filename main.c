@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "include/window.h"
 #include "include/shared.h"
 #include "include/vkKatzi.h"
 
@@ -100,7 +99,7 @@ int main() {
         elapsedTime += deltaTime;
         elapsedTotal += deltaTime;
 
-        if (elapsedTime > 1) {
+        if (elapsedTime > 0.1) {
             fprintf(stdout, "Frametime: %lf, FPS: %lf\n", deltaTime, 1.0 / deltaTime);
             fflush(stdout);
             elapsedTime = 0;
