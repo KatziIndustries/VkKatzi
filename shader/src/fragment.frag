@@ -2,15 +2,16 @@
 
 layout(location = 0) in vec4 fragColor;
 
-layout(binding = 32) uniform MousePositon {
+layout(push_constant) uniform PushConstants {
+    mat4 ortho;
     vec2 mousePosition;
-} MousePositionData;
+} pc;
 
 layout(location = 0) out vec4 outColor;
 
 void main() {
-    float dist = distance(gl_FragCoord.xy, MousePositionData.mousePosition) / 200;
-    float inverseDist = 2 - dist;
+    float dist = distance(gl_FragCoord.xy, pc.mousePosition) / 300;
+    float inverseDist = 1 - dist;
 
     outColor = vec4(fragColor.xyz, inverseDist);
 }

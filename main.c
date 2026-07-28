@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "include/window.h"
 #include "include/shared.h"
@@ -15,6 +16,27 @@ GLFWwindow* window;
 
 bool leftMousePressed;
 
+
+float* mergeArrays(float arr1[], int n1, float arr2[], int n2) {
+  	float *res = (float*)malloc(sizeof(float) * (n1 + n2));
+    memcpy(res, arr1, n1 * sizeof(float));
+    memcpy(res + n1, arr2, n2 * sizeof(float));
+  	return res;
+}
+
+static void CreateOrthoMatrix(float* o_matrix, float width, float height) {
+
+    for (int i = 0; i < 16; i++)   
+        o_matrix[i] = 0.0f;
+    
+    o_matrix[0] = 2.0f / width;
+    o_matrix[5] = 2.0f / height;
+    o_matrix[10] = 1.0f;
+    o_matrix[12] = -1.0f;
+    o_matrix[13] = -1.0f;
+    o_matrix[15] = 1.0f;
+}
+
 int main() {
 
     window = VKK_CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol");
@@ -22,7 +44,7 @@ int main() {
     VKK_Config config = {
         .presentMode = VKK_PRESENT_MODE_IMMEDIATE,
         .imageBufferSize = 3,
-        .enableValidationLayers = false,
+        .enableValidationLayers = true,
         .verboseLogging = true
     };
 
@@ -36,13 +58,17 @@ int main() {
     fprintf(stdout, "[Device]: Name: %s, Api Version: %i, Device ID: %i, Device Type: %i, Driver Version: %i, Vendor ID: %i\n", deviceInfo.name, deviceInfo.apiVersion, deviceInfo.deviceID, deviceInfo.deviceType, deviceInfo.driverVersion, deviceInfo.vendorID);
 
     VKK_Uniform timeUniform = VKK_CreateUniform(0, sizeof(float), VKK_SHADER_STAGE_VERTEX);
-    VKK_Uniform positionUniform = VKK_CreateUniform(32, sizeof(float) * 2, VKK_SHADER_STAGE_FRAGMENT);
 
-    if (!VKK_InitPipeline()) {
+    VKK_PushConstantRange pushConstantRange = {
+        .shaderStage = VKK_SHADER_STAGE_ALL,
+        .offset = 0,
+        .size = sizeof(float) * 20
+    };
+
+    if (!VKK_InitPipeline(pushConstantRange)) {
         fprintf(stderr, "Failed to initialize pipeline\n");
         exit(1);
     }
-
 
     static const VKK_Vertex vertices[] = {
         {{0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
@@ -91,30 +117,36 @@ int main() {
         }
 
         double mousePos[2];
-
         VKK_GetCursorPosition(window, &mousePos[0], &mousePos[1]);
         
         float mousePosF[2] = {
             (float)mousePos[0],
-            (float)mousePos[1]            
+            (float)mousePos[1]
         };
-        VKK_WriteUniform(positionUniform, mousePosF, sizeof(float) * 2, 0);
-        
-        VKK_SetMousePosition(mousePos[0], mousePos[1]);
-        
-        //VKK_WriteUniform(timeUniform, &elapsedTotal, sizeof(float), 0);
+
+        int windowWidth;
+        int windowHeight;
+        glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+
+        float matrix[16];
+        CreateOrthoMatrix(matrix, windowWidth, windowHeight);
+
+        float* pushData = mergeArrays(matrix, 16, mousePosF, 2);
+
+        VKK_SetPushConstantData(pushData);
 
         VKK_Draw(vertexBuffer, 3, indexBuffer, 3);
 
 	    VKK_PollEvents();
         VKK_Present();
+
+        free(pushData);
     }
 
     VKK_DestroyBuffer(vertexBuffer);
     VKK_DestroyBuffer(indexBuffer);
 
     VKK_DestroyUniform(timeUniform);
-    VKK_DestroyUniform(positionUniform);
 
     VKK_End();
     VKK_TerminateWindowing();

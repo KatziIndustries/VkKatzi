@@ -22,16 +22,6 @@ typedef struct {
 } VkSwapchainInfo;
 
 typedef struct {
-    float ortho[16];
-} UniformBufferObject;
-
-typedef struct {
-    float offset[2];
-    float scale[2];
-    float color[4];
-} RectangleInstance;
-
-typedef struct {
     VkSwapchainKHR swapchainHandle;
 
     VkImageView* imageViews;
@@ -60,12 +50,6 @@ typedef struct {
     VkBuffer indexBuffer;
     uint32_t indexCount;
 } DrawCall;
-
-struct VKK_Uniform_T {
-    VKK_Buffer buffer;
-    uint32_t binding;
-    VkShaderStageFlags stageFlags;
-};
 
 #define MAX_FRAMES_IN_FLIGHT 2
 #define MAX_DRAW_CALLS 1024
@@ -124,6 +108,9 @@ typedef struct  {
     VKK_Uniform uniforms[MAX_UNIFORMS];
     uint32_t uniformCount;
     bool pipelineFinalized;
+
+    VKK_PushConstantRange pushConstantRange;
+    void* pushConstantData;
 } VkContext;
 
 struct VKK_Buffer_T {
@@ -134,8 +121,14 @@ struct VKK_Buffer_T {
     void* mappedPtr;
 };
 
+struct VKK_Uniform_T {
+    VKK_Buffer buffer;
+    uint32_t binding;
+    VkShaderStageFlags stageFlags;
+};
+
+
 static VkContext vkContext;
-static float mousePosition[2];
 static bool verboseLogging = false;
 
 static bool CreateInstance() {
@@ -785,7 +778,7 @@ static void GetAttributeDescriptions(VkVertexInputAttributeDescription* o_attrib
     };
 }
 
-static bool CreateGraphicsPipeline() {
+static bool CreateGraphicsPipeline(VKK_PushConstantRange pushConstantRangeConfig) {
 
     VkShaderModule vertModule = CreateShaderModule("/media/Vulkan/VkKatzi/shader/compiled/vert.spv");
     VkShaderModule fragModule = CreateShaderModule("/media/Vulkan/VkKatzi/shader/compiled/frag.spv");
@@ -878,10 +871,12 @@ static bool CreateGraphicsPipeline() {
     };
 
     const VkPushConstantRange pushConstantRange = {
-        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-        .offset = 0,
-        .size = sizeof(float) * 2
+        .stageFlags = ConvertShaderStage(pushConstantRangeConfig.shaderStage),
+        .offset = pushConstantRangeConfig.offset,
+        .size = pushConstantRangeConfig.size,
     };
+
+    vkContext.pushConstantRange = pushConstantRangeConfig;
 
     const VkPipelineLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -1006,7 +1001,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    vkCmdPushConstants(commandBuffer, vkContext.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 2, mousePosition);
+    vkCmdPushConstants(commandBuffer, vkContext.pipelineLayout, ConvertShaderStage(vkContext.pushConstantRange.shaderStage), vkContext.pushConstantRange.offset, vkContext.pushConstantRange.size, vkContext.pushConstantData);
 
     if (vkContext.drawCallIndex > 0) {
 
@@ -1105,19 +1100,6 @@ static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
     vkBindBufferMemory(vkContext.logicalDevice, *o_buffer, *o_bufferMemory, 0);
 
     return true;
-}
-
-static void CreateOrthoMatrix(float* o_matrix, float width, float height) {
-
-    for (int i = 0; i < 16; i++)   
-        o_matrix[i] = 0.0f;
-    
-    o_matrix[0] = 2.0f / width;
-    o_matrix[5] = 2.0f / height;
-    o_matrix[10] = 1.0f;
-    o_matrix[12] = -1.0f;
-    o_matrix[13] = -1.0f;
-    o_matrix[15] = 1.0f;
 }
 
 static bool CreateDescriptorSetLayout() {
@@ -1312,9 +1294,8 @@ static void ProcessPendingDeletionsImmediate() {
     }
 }
 
-void VKK_SetMousePosition(float x, float y) {
-    mousePosition[0] = x;
-    mousePosition[1] = y;
+void VKK_SetPushConstantData(void* data) {
+    vkContext.pushConstantData = data;
 }
 
 void VKK_Present() {
@@ -1439,13 +1420,13 @@ VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config) {
     return deviceInfo;
 }
 
-bool VKK_InitPipeline(void) {
+bool VKK_InitPipeline(VKK_PushConstantRange pushConstantRangeConfig) {
 
     if (!CreateDescriptorSetLayout()) {
         return false;
     }
 
-    if (!CreateGraphicsPipeline()) {
+    if (!CreateGraphicsPipeline(pushConstantRangeConfig)) {
         return false;
     }
 

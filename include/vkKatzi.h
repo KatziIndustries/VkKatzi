@@ -72,8 +72,14 @@ typedef struct {
     uint32_t vendorID;
 } VKK_PhysicalDeviceInfo;
 
+typedef struct {
+    VKK_ShaderStage shaderStage;
+    uint32_t offset;
+    uint32_t size;
+} VKK_PushConstantRange;
+
 VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config);
-bool VKK_InitPipeline(void);
+bool VKK_InitPipeline(VKK_PushConstantRange pushConstantRange);
 void VKK_End(void);
 
 void VKK_Present(void);
@@ -85,11 +91,10 @@ void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t of
 VKK_Uniform VKK_CreateUniform(uint32_t binding, size_t size, VKK_ShaderStage shaderStage);
 void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t offset);
 void VKK_DestroyUniform(VKK_Uniform uniform);
-void VKK_BindUniform(VKK_Uniform uniform);
 
 void VKK_Draw(VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount);
 
-void VKK_SetMousePosition(float x, float y);
+void VKK_SetPushConstantData(void* data);
 
 #ifdef __cplusplus
 }
