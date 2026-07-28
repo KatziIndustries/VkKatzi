@@ -61,9 +61,15 @@ typedef struct {
     uint32_t indexCount;
 } DrawCall;
 
-#define MAX_FRAMES_IN_FLIGHT 2
+struct VKK_Uniform_T {
+    VKK_Buffer buffer;
+    uint32_t binding;
+    VkShaderStageFlags stageFlags;
+};
 
+#define MAX_FRAMES_IN_FLIGHT 2
 #define MAX_DRAW_CALLS 1024
+#define MAX_UNIFORMS 32
 
 typedef struct  {
     VkInstance instance;
@@ -97,8 +103,6 @@ typedef struct  {
     DrawCall drawCalls[MAX_DRAW_CALLS];
     uint32_t drawCallIndex;
 
-    VKK_Buffer uniformBuffer;
-
     VkDescriptorSetLayout descriptorSetLayout;
     VkDescriptorPool descriptorPool;
     VkDescriptorSet descriptorSet;
@@ -116,6 +120,10 @@ typedef struct  {
     uint32_t pendingDeletionCount;
 
     bool frameBufferResized;
+
+    VKK_Uniform uniforms[MAX_UNIFORMS];
+    uint32_t uniformCount;
+    bool pipelineFinalized;
 } VkContext;
 
 struct VKK_Buffer_T {
@@ -177,7 +185,7 @@ static bool CreateVkSurface() {
     return true;
 }
 
-static bool GetPhysicalDevice(VKK_InitInfo* initInfo) {
+static bool GetPhysicalDevice() {
     uint32_t deviceCount;
 
     vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, NULL);
@@ -225,10 +233,6 @@ static bool GetPhysicalDevice(VKK_InitInfo* initInfo) {
 
             VkPhysicalDeviceProperties properties;
             vkGetPhysicalDeviceProperties(device, &properties);
-
-            strncpy(initInfo->deviceInfo.name, properties.deviceName, 256);
-            initInfo->deviceInfo.apiVersion = properties.apiVersion;
-            initInfo->deviceInfo.driverVersion = properties.driverVersion;
 
             if (verboseLogging) {
                 Log("Got physical device", false);
@@ -366,16 +370,13 @@ static char* PresentModeToString(VKK_PresentMode presentMode) {
     }
 }
 
-static bool CreateVkSwapchain(VkSwapchain* o_swapchain, VKK_InitInfo* initInfo) {
+static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
 
     VkSwapchainInfo info;
     GetVkSwapchainInfo(&info);
 
     VkSurfaceFormatKHR format = GetVkSwapchainFormat(info.surfaceFormats, info.formatCount);
     VkPresentModeKHR presentMode = GetVkSwapchainPresentMode(info.surfacePresentModes, info.presentModesCount);
-
-    initInfo->presentMode = (VKK_PresentMode)presentMode;
-    strncpy(initInfo->presentModeString, PresentModeToString(presentMode), 256);
 
     VkExtent2D extent = GetVkSwapchainExtent(&info.surfaceCapabilities, vkContext.windowWidth, vkContext.windowHeight);
 
@@ -456,10 +457,6 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain, VKK_InitInfo* initInfo) 
             return false;
         }
     }
-
-    initInfo->imageBufferSize = o_swapchain->imageCount;
-    initInfo->minImageBufferSize = info.surfaceCapabilities.minImageCount;
-    initInfo->maxImageBufferSize = info.surfaceCapabilities.maxImageCount;
 
     if (verboseLogging) {
         Log("Created swapchain", false);
@@ -688,6 +685,10 @@ void VKK_DestroyBuffer(VKK_Buffer buffer) {
     vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
 }
 
+void VKK_DestroyUniform(VKK_Uniform uniform) {
+    VKK_DestroyBuffer(uniform->buffer);
+}
+
 void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t offset) {
     if (!buffer) {
         Log("VKK_WriteBuffer: buffer is NULL", true);
@@ -703,6 +704,54 @@ void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t of
     vkMapMemory(vkContext.logicalDevice, buffer->memory, offset, size, 0, &mapped);
     memcpy(mapped, data, size);
     vkUnmapMemory(vkContext.logicalDevice, buffer->memory);
+}
+
+static VkShaderStageFlags ConvertShaderStage(VKK_ShaderStage shaderStage) {
+    switch (shaderStage) {
+        case VKK_SHADER_STAGE_VERTEX:
+            return VK_SHADER_STAGE_VERTEX_BIT;
+
+        case VKK_SHADER_STAGE_FRAGMENT:
+            return VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        case VKK_SHADER_STAGE_ALL:
+            return VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+
+    return VK_SHADER_STAGE_VERTEX_BIT;
+}
+
+VKK_Uniform VKK_CreateUniform(uint32_t binding, size_t size, VKK_ShaderStage stage) { 
+
+    if (vkContext.pipelineFinalized) {
+        fprintf(stderr, "[VKK][ERROR]: VKK_CreateUniform: Uniforms must be created before VKK_Init finishes\n");
+        return NULL;
+    }
+
+    if (vkContext.uniformCount >= MAX_UNIFORMS) {
+        fprintf(stderr, "[VKK][ERROR]: Max uniforms (%d) exceeded\n", MAX_UNIFORMS);
+        return NULL;
+    }
+
+    VKK_Uniform uniform = malloc(sizeof(struct VKK_Uniform_T));
+    uniform->buffer = VKK_CreateBuffer(size, VKK_BUFFER_USAGE_UNIFORM);
+    uniform->binding = binding;
+    uniform->stageFlags = ConvertShaderStage(stage);
+
+    if (!uniform->buffer) {
+        free(uniform);
+        return NULL;
+    }
+
+    vkContext.uniforms[vkContext.uniformCount++] = uniform;
+    return uniform;
+}
+
+void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t offset) {
+    if (!uniform)
+        return;
+
+    VKK_WriteBuffer(uniform->buffer, data, size, offset);
 }
 
 static void GetBindingDescription(VkVertexInputBindingDescription* o_bindings) {
@@ -1065,17 +1114,22 @@ static void CreateOrthoMatrix(float* o_matrix, float width, float height) {
 }
 
 static bool CreateDescriptorSetLayout() {
-    const VkDescriptorSetLayoutBinding uboLayoutBinding = {
-        .binding = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = 1,
-        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-    };
+
+    VkDescriptorSetLayoutBinding bindings[MAX_UNIFORMS];
+
+    for (uint32_t i = 0; i < vkContext.uniformCount; i++) {
+        bindings[i] = (VkDescriptorSetLayoutBinding){
+            .binding = vkContext.uniforms[i]->binding,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = vkContext.uniforms[i]->stageFlags
+        };
+    }
 
     const VkDescriptorSetLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings = &uboLayoutBinding
+        .bindingCount = vkContext.uniformCount,
+        .pBindings = bindings
     };
 
     if (vkCreateDescriptorSetLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.descriptorSetLayout) != VK_SUCCESS) {
@@ -1085,27 +1139,6 @@ static bool CreateDescriptorSetLayout() {
 
     if (verboseLogging) {
         Log("Created descriptor set layout", false);
-    }
-
-    return true;
-}
-
-static bool CreateUniformBuffer() {
-
-    vkContext.uniformBuffer = VKK_CreateBuffer(sizeof(UniformBufferObject), VKK_BUFFER_USAGE_UNIFORM);
-
-    if (!vkContext.uniformBuffer) {
-        Log("Failed to create uniform buffer", true);
-        return false;
-    }
-
-    UniformBufferObject ubo;
-    CreateOrthoMatrix(ubo.ortho, (float)vkContext.swapchain.dimensions.width, (float)vkContext.swapchain.dimensions.height);
-
-    VKK_WriteBuffer(vkContext.uniformBuffer, &ubo, sizeof(ubo), 0);
-
-    if (verboseLogging) {
-        Log("Created uniform buffer", false);
     }
 
     return true;
@@ -1139,18 +1172,13 @@ static bool RecreateSwapchain() {
 
     CleanupSwapchain();
 
-    VKK_InitInfo initInfo;
-    if (!CreateVkSwapchain(&vkContext.swapchain, &initInfo)) {
+    if (!CreateVkSwapchain(&vkContext.swapchain)) {
         return false;
     }
 
     if (!CreateFrameBuffers(&vkContext.swapchain)) {
         return false;
     }
-
-    UniformBufferObject ubo;
-    CreateOrthoMatrix(ubo.ortho, (float)width, (float)height);
-    VKK_WriteBuffer(vkContext.uniformBuffer, &ubo, sizeof(ubo), 0);
 
     if (verboseLogging) {
         Log("Recreated swapchain", false);
@@ -1183,7 +1211,7 @@ static bool CreateDescriptorPoolAndSet() {
 
     const VkDescriptorPoolSize poolSize = {
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = 1
+        .descriptorCount = vkContext.uniformCount
     };
 
     const VkDescriptorPoolCreateInfo poolInfo = {
@@ -1210,26 +1238,31 @@ static bool CreateDescriptorPoolAndSet() {
         return false;
     }
 
-    const VkDescriptorBufferInfo bufferInfo = {
-        .buffer = vkContext.uniformBuffer->handle,
-        .offset = 0,
-        .range = sizeof(UniformBufferObject)
-    };
+    VkDescriptorBufferInfo bufferInfos[MAX_UNIFORMS];
+    VkWriteDescriptorSet writes[MAX_UNIFORMS];
 
-    const VkWriteDescriptorSet descriptorWrite = {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = vkContext.descriptorSet,
-        .dstBinding = 0,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = 1,
-        .pBufferInfo = &bufferInfo
-    };
+    for (uint32_t i = 0; i < vkContext.uniformCount; i++) {
+        bufferInfos[i] = (VkDescriptorBufferInfo){
+            .buffer = vkContext.uniforms[i]->buffer->handle,
+            .offset = 0,
+            .range = vkContext.uniforms[i]->buffer->size
+        };
 
-    vkUpdateDescriptorSets(vkContext.logicalDevice, 1, &descriptorWrite, 0, NULL);
+        writes[i] = (VkWriteDescriptorSet){
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = vkContext.descriptorSet,
+            .dstBinding = vkContext.uniforms[i]->binding,
+            .dstArrayElement = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .pBufferInfo = &bufferInfos[i]
+        };
+    }
+
+    vkUpdateDescriptorSets(vkContext.logicalDevice, vkContext.uniformCount, writes, 0, NULL);
 
     if (verboseLogging) {
-        Log("Created descriptor set", false);
+        fprintf(stdout, "[VKK][INFO]: Created descriptor set (%u uniforms bound)\n", vkContext.uniformCount);
     }
 
     return true;
@@ -1334,11 +1367,7 @@ void VKK_Present() {
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-VKK_InitInfo VKK_Init(GLFWwindow* window, VKK_Config config) {
-
-    VKK_InitInfo initInfo;
-
-    initInfo.success = false;
+bool VKK_InitDevice(GLFWwindow* window, VKK_Config config) {
 
     verboseLogging = config.verboseLogging;
 
@@ -1370,65 +1399,67 @@ VKK_InitInfo VKK_Init(GLFWwindow* window, VKK_Config config) {
     vkContext.extensions = instanceExtensions;
 
     if (!CreateInstance()) {
-        return initInfo;
+        return false;
     }
 
     if (!CreateVkSurface()) {
-        return initInfo;
+        return false;
     }
 
-    if (!GetPhysicalDevice(&initInfo)) {
-        return initInfo;
+    if (!GetPhysicalDevice()) {
+        return false;
     }
 
     if (!CreateLogicalDevice()) {
-        return initInfo;
+        return false;
     }
 
-    if (!CreateVkSwapchain(&vkContext.swapchain, &initInfo)) {
-        return initInfo;
+    if (!CreateVkSwapchain(&vkContext.swapchain)) {
+        return false;
     }
 
     if (!CreateRenderPass()) {
-        return initInfo;
+        return false;
     }
 
+    return true;
+}
+
+bool VKK_InitPipeline(void) {
+
     if (!CreateDescriptorSetLayout()) {
-        return initInfo;
+        return false;
     }
 
     if (!CreateGraphicsPipeline()) {
-        return initInfo;
+        return false;
     }
 
+    vkContext.pipelineFinalized = true;
+
     if (!CreateFrameBuffers(&vkContext.swapchain)) {
-        return initInfo;
+        return false;
     }
 
     if (!CreateCommandPool()) {
-        return initInfo;
+        return false;
     }
 
     if (!CreateCommandBuffers()) {
-        return initInfo;
+        return false;
     }
 
     if (!CreateSyncObjects()) {
-        return initInfo;
-    }
-
-    if (!CreateUniformBuffer()) {
-        return initInfo;
+        return false;
     }
 
     if (!CreateDescriptorPoolAndSet()) {
-        return initInfo;
+        return false;
     }
 
     vkContext.currentFrame = 0;
 
-    initInfo.success = true;
-    return initInfo;
+    return true;
 }
 
 void VKK_End() {
@@ -1438,8 +1469,6 @@ void VKK_End() {
 
     vkDestroyDescriptorPool(vkContext.logicalDevice, vkContext.descriptorPool, NULL);
     vkDestroyDescriptorSetLayout(vkContext.logicalDevice, vkContext.descriptorSetLayout, NULL);
-
-    VKK_DestroyBuffer(vkContext.uniformBuffer);
 
     ProcessPendingDeletionsImmediate();
 

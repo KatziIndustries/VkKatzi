@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 typedef struct VKK_Buffer_T* VKK_Buffer;
+typedef struct VKK_Uniform_T* VKK_Uniform;
 
 typedef enum {
     VKK_BUFFER_USAGE_VERTEX,
@@ -34,6 +35,12 @@ typedef enum {
     VKK_PRESENT_MODE_FIFO_LATEST_READY = 1000361000
 } VKK_PresentMode;
 
+typedef enum {
+    VKK_SHADER_STAGE_VERTEX,
+    VKK_SHADER_STAGE_FRAGMENT,
+    VKK_SHADER_STAGE_ALL,
+} VKK_ShaderStage;
+
 typedef struct {
     float position[2];
     float color[4];
@@ -52,17 +59,8 @@ typedef struct {
     uint32_t driverVersion;
 } VKK_PhysicalDeviceInfo;
 
-typedef struct {
-    bool success;
-    VKK_PhysicalDeviceInfo deviceInfo;
-    VKK_PresentMode presentMode;
-    char presentModeString[256];
-    uint32_t imageBufferSize;
-    uint32_t maxImageBufferSize;
-    uint32_t minImageBufferSize;
-} VKK_InitInfo;
-
-VKK_InitInfo VKK_Init(GLFWwindow* window, VKK_Config config);
+bool VKK_InitDevice(GLFWwindow* window, VKK_Config config);
+bool VKK_InitPipeline(void);
 void VKK_End(void);
 
 void VKK_Present(void);
@@ -70,6 +68,11 @@ void VKK_Present(void);
 VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage);
 void VKK_DestroyBuffer(VKK_Buffer buffer);
 void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t offset);
+
+VKK_Uniform VKK_CreateUniform(uint32_t binding, size_t size, VKK_ShaderStage shaderStage);
+void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t offset);
+void VKK_DestroyUniform(VKK_Uniform uniform);
+void VKK_BindUniform(VKK_Uniform uniform);
 
 void VKK_Draw(VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount);
 
