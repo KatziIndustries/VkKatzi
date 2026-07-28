@@ -46,6 +46,15 @@ typedef struct {
     float color[4];
 } VKK_Vertex;
 
+typedef enum {
+    VKK_PHYSICAL_DEVICE_TYPE_OTHER = 0,
+    VKK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU = 1,
+    VKK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU = 2,
+    VKK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU = 3,
+    VKK_PHYSICAL_DEVICE_TYPE_CPU = 4,
+    VKK_PHYSICAL_DEVICE_TYPE_MAX_ENUM = 0x7FFFFFFF
+} VKK_PhysicalDeviceType;
+
 typedef struct {
     VKK_PresentMode presentMode;
     uint32_t imageBufferSize;
@@ -54,12 +63,16 @@ typedef struct {
 } VKK_Config;
 
 typedef struct {
+    bool success;
     char name[256];
     uint32_t apiVersion;
     uint32_t driverVersion;
+    uint32_t deviceID;
+    VKK_PhysicalDeviceType deviceType;
+    uint32_t vendorID;
 } VKK_PhysicalDeviceInfo;
 
-bool VKK_InitDevice(GLFWwindow* window, VKK_Config config);
+VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config);
 bool VKK_InitPipeline(void);
 void VKK_End(void);
 

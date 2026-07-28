@@ -185,7 +185,7 @@ static bool CreateVkSurface() {
     return true;
 }
 
-static bool GetPhysicalDevice() {
+static bool GetPhysicalDevice(VKK_PhysicalDeviceInfo* deviceInfo) {
     uint32_t deviceCount;
 
     vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, NULL);
@@ -233,6 +233,13 @@ static bool GetPhysicalDevice() {
 
             VkPhysicalDeviceProperties properties;
             vkGetPhysicalDeviceProperties(device, &properties);
+
+            strncpy(deviceInfo->name, properties.deviceName, 256);
+            deviceInfo->apiVersion = properties.apiVersion;
+            deviceInfo->driverVersion = properties.driverVersion;
+            deviceInfo->deviceID = properties.deviceID;
+            deviceInfo->deviceType = properties.deviceType;
+            deviceInfo->vendorID = properties.vendorID;
 
             if (verboseLogging) {
                 Log("Got physical device", false);
@@ -724,7 +731,7 @@ static VkShaderStageFlags ConvertShaderStage(VKK_ShaderStage shaderStage) {
 VKK_Uniform VKK_CreateUniform(uint32_t binding, size_t size, VKK_ShaderStage stage) { 
 
     if (vkContext.pipelineFinalized) {
-        fprintf(stderr, "[VKK][ERROR]: VKK_CreateUniform: Uniforms must be created before VKK_Init finishes\n");
+        fprintf(stderr, "[VKK][ERROR]: VKK_CreateUniform: Uniforms must be created before VKK_InitPipeline finishes\n");
         return NULL;
     }
 
@@ -1370,7 +1377,10 @@ void VKK_Present() {
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-bool VKK_InitDevice(GLFWwindow* window, VKK_Config config) {
+VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config) {
+
+    VKK_PhysicalDeviceInfo deviceInfo;
+    deviceInfo.success = false;
 
     verboseLogging = config.verboseLogging;
 
@@ -1402,30 +1412,31 @@ bool VKK_InitDevice(GLFWwindow* window, VKK_Config config) {
     vkContext.extensions = instanceExtensions;
 
     if (!CreateInstance()) {
-        return false;
+        return deviceInfo;
     }
 
     if (!CreateVkSurface()) {
-        return false;
+        return deviceInfo;
     }
 
-    if (!GetPhysicalDevice()) {
-        return false;
+    if (!GetPhysicalDevice(&deviceInfo)) {
+        return deviceInfo;
     }
 
     if (!CreateLogicalDevice()) {
-        return false;
+        return deviceInfo;
     }
 
     if (!CreateVkSwapchain(&vkContext.swapchain)) {
-        return false;
+        return deviceInfo;
     }
 
     if (!CreateRenderPass()) {
-        return false;
+        return deviceInfo;
     }
 
-    return true;
+    deviceInfo.success = true;
+    return deviceInfo;
 }
 
 bool VKK_InitPipeline(void) {

@@ -28,10 +28,14 @@ int main() {
         .verboseLogging = true
     };
 
-    if (!VKK_InitDevice(window, config)) {
+    VKK_PhysicalDeviceInfo deviceInfo = VKK_InitDevice(window, config);
+
+    if (!deviceInfo.success) {
         fprintf(stderr, "Failed to initialize Vulkan context\n");
         exit(1);
     }
+
+    fprintf(stdout, "[Device]: Name: %s, Api Version: %i, Device ID: %i, Device Type: %i, Driver Version: %i, Vendor ID: %i\n", deviceInfo.name, deviceInfo.apiVersion, deviceInfo.deviceID, deviceInfo.deviceType, deviceInfo.driverVersion, deviceInfo.vendorID);
 
     VKK_Uniform timeUniform = VKK_CreateUniform(0, sizeof(float), VKK_SHADER_STAGE_VERTEX);
     VKK_Uniform positionUniform = VKK_CreateUniform(32, sizeof(float) * 2, VKK_SHADER_STAGE_FRAGMENT);
