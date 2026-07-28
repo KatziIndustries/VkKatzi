@@ -1168,6 +1168,9 @@ static bool RecreateSwapchain() {
         glfwWaitEvents();
     }
 
+    vkContext.windowWidth = width;
+    vkContext.windowHeight = height;
+
     vkDeviceWaitIdle(vkContext.logicalDevice);
 
     CleanupSwapchain();
