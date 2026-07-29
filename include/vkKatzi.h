@@ -16,6 +16,31 @@ extern "C" {
 
 typedef struct VKK_Buffer_T* VKK_Buffer;
 typedef struct VKK_Uniform_T* VKK_Uniform;
+typedef struct VKK_Pipeline_T* VKK_Pipeline;
+
+typedef struct {
+    const char* vertexShaderPath; 
+    const char* fragmentShaderPath; 
+} VKK_ShaderPaths;
+
+typedef enum {
+    VKK_VERTEX_FORMAT_FLOAT2,
+    VKK_VERTEX_FORMAT_FLOAT3,
+    VKK_VERTEX_FORMAT_FLOAT4
+} VKK_VertexFormat;
+
+typedef struct {
+    uint32_t location;
+    VKK_VertexFormat format;
+    uint32_t offset;
+} VKK_VertexAttribute;
+
+typedef struct {
+    VKK_ShaderPaths shaderPaths;
+    VKK_VertexAttribute* attributes;
+    uint32_t attributeCount;
+    uint32_t vertexStride;
+} VKK_PipelineDescription;
 
 typedef enum {
     VKK_BUFFER_USAGE_VERTEX,
@@ -79,7 +104,7 @@ typedef struct {
 } VKK_PushConstantRange;
 
 VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config);
-bool VKK_InitPipeline(VKK_PushConstantRange pushConstantRange);
+bool VKK_InitPipeline();
 void VKK_End(void);
 
 void VKK_Present(void);
@@ -92,9 +117,12 @@ VKK_Uniform VKK_CreateUniform(uint32_t binding, size_t size, VKK_ShaderStage sha
 void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t offset);
 void VKK_DestroyUniform(VKK_Uniform uniform);
 
-void VKK_Draw(VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount);
+void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount);
 
 void VKK_SetPushConstantData(void* data);
+
+VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc, VKK_PushConstantRange pushConstanRangeConfig);
+void VKK_DestroyPipeline(VKK_Pipeline pipeline);
 
 GLFWwindow* VKK_CreateWindow(int width, int height, char* title);
 bool VKK_WindowShouldClose(GLFWwindow* window);
@@ -103,6 +131,7 @@ void VKK_PollEvents();
 double VKK_GetTime();
 int VKK_GetMouseButton(GLFWwindow* window, int button);
 void VKK_GetCursorPosition(GLFWwindow* window, double* x, double* y);
+void VKK_GetFramebufferSize(GLFWwindow* window, int* width, int* height);
 
 #ifdef __cplusplus
 }

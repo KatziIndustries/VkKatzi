@@ -49,6 +49,7 @@ typedef struct {
     uint32_t vertexCount;
     VkBuffer indexBuffer;
     uint32_t indexCount;
+    VKK_Pipeline pipeline;
 } DrawCall;
 
 #define MAX_FRAMES_IN_FLIGHT 2
@@ -80,9 +81,6 @@ typedef struct  {
     VkSwapchain swapchain;
 
     VkRenderPass renderPass;
-
-    VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
 
     DrawCall drawCalls[MAX_DRAW_CALLS];
     uint32_t drawCallIndex;
@@ -125,6 +123,11 @@ struct VKK_Uniform_T {
     VKK_Buffer buffer;
     uint32_t binding;
     VkShaderStageFlags stageFlags;
+};
+
+struct VKK_Pipeline_T {
+    VkPipeline handle;
+    VkPipelineLayout layout;
 };
 
 
@@ -778,10 +781,25 @@ static void GetAttributeDescriptions(VkVertexInputAttributeDescription* o_attrib
     };
 }
 
-static bool CreateGraphicsPipeline(VKK_PushConstantRange pushConstantRangeConfig) {
+static VkFormat ConvertVertexFormat(VKK_VertexFormat format) {
+    switch (format) {
+        case VKK_VERTEX_FORMAT_FLOAT2:
+            return VK_FORMAT_R32G32_SFLOAT;
 
-    VkShaderModule vertModule = CreateShaderModule("/media/Vulkan/VkKatzi/shader/compiled/vert.spv");
-    VkShaderModule fragModule = CreateShaderModule("/media/Vulkan/VkKatzi/shader/compiled/frag.spv");
+        case VKK_VERTEX_FORMAT_FLOAT3:
+            return VK_FORMAT_R32G32B32_SFLOAT;
+
+        case VKK_VERTEX_FORMAT_FLOAT4:
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
+    }
+
+    return VK_FORMAT_R32G32_SFLOAT;
+}
+
+VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc, VKK_PushConstantRange pushConstantRangeConfig) {
+
+    VkShaderModule vertModule = CreateShaderModule(desc.shaderPaths.vertexShaderPath);
+    VkShaderModule fragModule = CreateShaderModule(desc.shaderPaths.fragmentShaderPath);
 
     if (vertModule == VK_NULL_HANDLE || fragModule == VK_NULL_HANDLE) {
         return false;
@@ -802,18 +820,35 @@ static bool CreateGraphicsPipeline(VKK_PushConstantRange pushConstantRangeConfig
         }
     };
 
-    VkVertexInputBindingDescription bindingDescriptions[1];
-    GetBindingDescription(bindingDescriptions);
+    //VkVertexInputBindingDescription bindingDescriptions[1];
+    //GetBindingDescription(bindingDescriptions);
 
-    VkVertexInputAttributeDescription attributeDescription[2];
-    GetAttributeDescriptions(attributeDescription);
+    //VkVertexInputAttributeDescription attributeDescription[2];
+    //GetAttributeDescriptions(attributeDescription);
+
+    VkVertexInputBindingDescription bindingDescription = {
+        .binding = 0,
+        .stride = desc.vertexStride,
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX   
+    };
+
+    VkVertexInputAttributeDescription attributeDescriptions[16];
+
+    for (uint32_t i = 0; i < desc.attributeCount; i++) {
+        attributeDescriptions[i] = (VkVertexInputAttributeDescription){
+            .binding = 0,
+            .location = desc.attributes[i].location,
+            .format = ConvertVertexFormat(desc.attributes[i].format),
+            .offset = desc.attributes[i].offset
+        };
+    }
 
     const VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .vertexBindingDescriptionCount = 1,
-        .pVertexBindingDescriptions = bindingDescriptions,
-        .vertexAttributeDescriptionCount = 2,
-        .pVertexAttributeDescriptions = attributeDescription
+        .pVertexBindingDescriptions = &bindingDescription,
+        .vertexAttributeDescriptionCount = desc.attributeCount,
+        .pVertexAttributeDescriptions = attributeDescriptions
     };
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -886,8 +921,11 @@ static bool CreateGraphicsPipeline(VKK_PushConstantRange pushConstantRangeConfig
         .pPushConstantRanges = &pushConstantRange
     };
 
-    if (vkCreatePipelineLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.pipelineLayout) != VK_SUCCESS) {
+    VKK_Pipeline pipeline = malloc(sizeof(struct VKK_Pipeline_T));
+
+    if (vkCreatePipelineLayout(vkContext.logicalDevice, &layoutInfo, NULL, &pipeline->layout) != VK_SUCCESS) {
         Log("Failed to create pipeline layout", true);
+        free(pipeline);
         return false;
     }
 
@@ -901,14 +939,16 @@ static bool CreateGraphicsPipeline(VKK_PushConstantRange pushConstantRangeConfig
         .pRasterizationState = &rasterizer,
         .pMultisampleState = &multisampling,
         .pColorBlendState = &colorBlending,
-        .layout = vkContext.pipelineLayout,
+        .layout = pipeline->layout,
         .renderPass = vkContext.renderPass,
         .subpass = 0,
         .pDynamicState = &dynamicState
     };
 
-    if (vkCreateGraphicsPipelines(vkContext.logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &vkContext.graphicsPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(vkContext.logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &pipeline->handle) != VK_SUCCESS) {
         Log("Failed to create graphics pipeline", true);
+        vkDestroyPipelineLayout(vkContext.logicalDevice, pipeline->layout, NULL);
+        free(pipeline);
         return false;
     }
 
@@ -919,7 +959,18 @@ static bool CreateGraphicsPipeline(VKK_PushConstantRange pushConstantRangeConfig
         Log("Created graphics pipeline", false);
     }
 
-    return true;
+    return pipeline;
+}
+
+void VKK_DestroyPipeline(VKK_Pipeline pipeline) {
+
+    if (!pipeline)
+        return;
+
+    vkDeviceWaitIdle(vkContext.logicalDevice);
+    vkDestroyPipeline(vkContext.logicalDevice, pipeline->handle, NULL);
+    vkDestroyPipelineLayout(vkContext.logicalDevice, pipeline->layout, NULL);
+    free(pipeline);
 }
 
 static bool CreateSyncObjects() {
@@ -982,7 +1033,6 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     };
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.graphicsPipeline);
 
     const VkViewport viewport = {
         .x = 0.0f,
@@ -1001,21 +1051,25 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    vkCmdPushConstants(commandBuffer, vkContext.pipelineLayout, ConvertShaderStage(vkContext.pushConstantRange.shaderStage), vkContext.pushConstantRange.offset, vkContext.pushConstantRange.size, vkContext.pushConstantData);
+    vkCmdPushConstants(commandBuffer, vkContext.drawCalls[0].pipeline->layout, ConvertShaderStage(vkContext.pushConstantRange.shaderStage), vkContext.pushConstantRange.offset, vkContext.pushConstantRange.size, vkContext.pushConstantData);
 
     if (vkContext.drawCallIndex > 0) {
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.pipelineLayout, 0, 1, &vkContext.descriptorSet, 0, NULL);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.drawCalls[0].pipeline->layout, 0, 1, &vkContext.descriptorSet, 0, NULL);
 
         for (uint32_t i = 0; i < vkContext.drawCallIndex; i++) {
-            VkBuffer vertexBuffer = vkContext.drawCalls[i].vertexBuffer;
-            VkBuffer indexBuffer = vkContext.drawCalls[i].indexBuffer;
-            VkDeviceSize offset = 0;
+            
+            DrawCall* drawCall = &vkContext.drawCalls[i];
 
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
-            vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCall->pipeline->handle);
+
+            VkDeviceSize offset = 0;
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &drawCall->vertexBuffer, &offset);
+            vkCmdBindIndexBuffer(commandBuffer, drawCall->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCall->pipeline->layout, 0, 1, &vkContext.descriptorSet, 0, NULL);
         
-            vkCmdDrawIndexed(commandBuffer, vkContext.drawCalls[i].indexCount, 1, 0, 0, 0);
+            vkCmdDrawIndexed(commandBuffer, drawCall->indexCount, 1, 0, 0, 0);
         }
 
     }
@@ -1032,7 +1086,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     return true;
 }
 
-void VKK_Draw(VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount) {
+void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount) {
 
     if (vkContext.drawCallIndex >= MAX_DRAW_CALLS) {
         fprintf(stderr, "[VKK][ERROR]: Max draw calls (%d) in frame reached, dropping draw call\n", MAX_DRAW_CALLS);
@@ -1043,7 +1097,8 @@ void VKK_Draw(VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuf
         .vertexBuffer = vertexBuffer->handle,
         .indexBuffer = indexBuffer->handle,
         .vertexCount = vertexCount,
-        .indexCount = indexCount
+        .indexCount = indexCount,
+        .pipeline = pipeline
     };
 
     vkContext.drawCalls[vkContext.drawCallIndex++] = drawCall;
@@ -1420,13 +1475,9 @@ VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config) {
     return deviceInfo;
 }
 
-bool VKK_InitPipeline(VKK_PushConstantRange pushConstantRangeConfig) {
+bool VKK_InitPipeline() {
 
     if (!CreateDescriptorSetLayout()) {
-        return false;
-    }
-
-    if (!CreateGraphicsPipeline(pushConstantRangeConfig)) {
         return false;
     }
 
@@ -1481,8 +1532,6 @@ void VKK_End() {
     vkDestroyCommandPool(vkContext.logicalDevice, vkContext.commandPool, NULL);
     free(vkContext.commandBuffers);
 
-    vkDestroyPipeline(vkContext.logicalDevice, vkContext.graphicsPipeline, NULL);
-    vkDestroyPipelineLayout(vkContext.logicalDevice, vkContext.pipelineLayout, NULL);
     vkDestroyRenderPass(vkContext.logicalDevice, vkContext.renderPass, NULL);
     
     vkDestroyDevice(vkContext.logicalDevice, NULL);

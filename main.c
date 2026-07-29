@@ -41,7 +41,7 @@ int main() {
     window = VKK_CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol");
 
     VKK_Config config = {
-        .presentMode = VKK_PRESENT_MODE_IMMEDIATE,
+        .presentMode = VKK_PRESENT_MODE_MAILBOX,
         .imageBufferSize = 3,
         .enableValidationLayers = true,
         .verboseLogging = true
@@ -61,13 +61,27 @@ int main() {
     VKK_PushConstantRange pushConstantRange = {
         .shaderStage = VKK_SHADER_STAGE_ALL,
         .offset = 0,
-        .size = sizeof(float) * 20
+        .size = sizeof(float) * 18
     };
 
-    if (!VKK_InitPipeline(pushConstantRange)) {
+    if (!VKK_InitPipeline()) {
         fprintf(stderr, "Failed to initialize pipeline\n");
         exit(1);
     }
+
+    VKK_VertexAttribute attributes[] = {
+        { .location = 0, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(VKK_Vertex, position)},
+        { .location = 1, .format = VKK_VERTEX_FORMAT_FLOAT4, .offset = offsetof(VKK_Vertex, color)},
+    };
+
+    VKK_PipelineDescription pipelineDescription = {
+        .shaderPaths = { .vertexShaderPath = "shader/compiled/vert.spv", .fragmentShaderPath = "shader/compiled/frag.spv" },
+        .attributes = attributes,
+        .attributeCount = 2,
+        .vertexStride = sizeof(VKK_Vertex)
+    };
+
+    VKK_Pipeline trianglePipeline = VKK_CreatePipeline(pipelineDescription, pushConstantRange);
 
     static const VKK_Vertex vertices[] = {
         {{0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
@@ -99,7 +113,7 @@ int main() {
         elapsedTime += deltaTime;
         elapsedTotal += deltaTime;
 
-        if (elapsedTime > 0.1) {
+        if (elapsedTime > 1) {
             fprintf(stdout, "Frametime: %lf, FPS: %lf\n", deltaTime, 1.0 / deltaTime);
             fflush(stdout);
             elapsedTime = 0;
@@ -125,7 +139,7 @@ int main() {
 
         int windowWidth;
         int windowHeight;
-        glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+        VKK_GetFramebufferSize(window, &windowWidth, &windowHeight);
 
         float matrix[16];
         CreateOrthoMatrix(matrix, windowWidth, windowHeight);
@@ -134,7 +148,7 @@ int main() {
 
         VKK_SetPushConstantData(pushData);
 
-        VKK_Draw(vertexBuffer, 3, indexBuffer, 3);
+        VKK_Draw(trianglePipeline, vertexBuffer, 3, indexBuffer, 3);
 
 	    VKK_PollEvents();
         VKK_Present();
@@ -146,6 +160,8 @@ int main() {
     VKK_DestroyBuffer(indexBuffer);
 
     VKK_DestroyUniform(timeUniform);
+    
+    VKK_DestroyPipeline(trianglePipeline);
 
     VKK_End();
     VKK_TerminateWindowing();

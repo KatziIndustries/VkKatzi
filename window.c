@@ -50,3 +50,7 @@ int VKK_GetMouseButton(GLFWwindow* window, int button) {
 void VKK_GetCursorPosition(GLFWwindow* window, double* x, double* y) {
     glfwGetCursorPos(window, x, y);
 }
+
+void VKK_GetFramebufferSize(GLFWwindow* window, int* width, int* height) {
+    glfwGetFramebufferSize(window, width, height);
+}
