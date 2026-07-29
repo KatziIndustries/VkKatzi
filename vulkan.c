@@ -757,30 +757,6 @@ void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t
     VKK_WriteBuffer(uniform->buffer, data, size, offset);
 }
 
-static void GetBindingDescription(VkVertexInputBindingDescription* o_bindings) {
-    o_bindings[0] = (VkVertexInputBindingDescription){
-        .binding = 0,
-        .stride = sizeof(VKK_Vertex),
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-    };
-}
-
-static void GetAttributeDescriptions(VkVertexInputAttributeDescription* o_attributes) {
-    o_attributes[0] = (VkVertexInputAttributeDescription){
-        .binding = 0,
-        .location = 0,
-        .format = VK_FORMAT_R32G32_SFLOAT,
-        .offset = offsetof(VKK_Vertex, position)
-    };
-
-    o_attributes[1] = (VkVertexInputAttributeDescription){
-        .binding = 0,
-        .location = 1,
-        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        .offset = offsetof(VKK_Vertex, color)
-    };
-}
-
 static VkFormat ConvertVertexFormat(VKK_VertexFormat format) {
     switch (format) {
         case VKK_VERTEX_FORMAT_FLOAT2:
