@@ -6,3 +6,4 @@ rm $SCRIPT_DIR/compiled/*
 
 glslc $SCRIPT_DIR/src/vertex.vert -o $SCRIPT_DIR/compiled/vert.spv
 glslc $SCRIPT_DIR/src/fragment.frag -o $SCRIPT_DIR/compiled/frag.spv
+glslc $SCRIPT_DIR/src/fragmentSolid.frag -o $SCRIPT_DIR/compiled/fragSolid.spv

@@ -772,7 +772,7 @@ static VkFormat ConvertVertexFormat(VKK_VertexFormat format) {
     return VK_FORMAT_R32G32_SFLOAT;
 }
 
-VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc, VKK_PushConstantRange pushConstantRangeConfig) {
+VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
 
     VkShaderModule vertModule = CreateShaderModule(desc.shaderPaths.vertexShaderPath);
     VkShaderModule fragModule = CreateShaderModule(desc.shaderPaths.fragmentShaderPath);
@@ -795,12 +795,6 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc, VKK_PushConstantRa
             .pName = "main"
         }
     };
-
-    //VkVertexInputBindingDescription bindingDescriptions[1];
-    //GetBindingDescription(bindingDescriptions);
-
-    //VkVertexInputAttributeDescription attributeDescription[2];
-    //GetAttributeDescriptions(attributeDescription);
 
     VkVertexInputBindingDescription bindingDescription = {
         .binding = 0,
@@ -882,12 +876,10 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc, VKK_PushConstantRa
     };
 
     const VkPushConstantRange pushConstantRange = {
-        .stageFlags = ConvertShaderStage(pushConstantRangeConfig.shaderStage),
-        .offset = pushConstantRangeConfig.offset,
-        .size = pushConstantRangeConfig.size,
+        .stageFlags = ConvertShaderStage(vkContext.pushConstantRange.shaderStage),
+        .offset = vkContext.pushConstantRange.offset,
+        .size = vkContext.pushConstantRange.size,
     };
-
-    vkContext.pushConstantRange = pushConstantRangeConfig;
 
     const VkPipelineLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -1451,7 +1443,9 @@ VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config) {
     return deviceInfo;
 }
 
-bool VKK_InitPipeline() {
+bool VKK_InitPipeline(VKK_PushConstantRange pushConstantRangeConfig) {
+
+    vkContext.pushConstantRange = pushConstantRangeConfig;
 
     if (!CreateDescriptorSetLayout()) {
         return false;

@@ -15,6 +15,21 @@ GLFWwindow* window;
 
 bool leftMousePressed;
 
+static const VKK_Vertex verticesLeft[] = {
+    {{0.5f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+    {{1.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+    {{0.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}},
+};
+
+static const VKK_Vertex verticesRight[] = {
+    {{-0.5f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+    {{0.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+    {{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}},
+};
+
+static const uint16_t indices[] = {
+    0, 1, 2, 
+};
 
 float* mergeArrays(float arr1[], int n1, float arr2[], int n2) {
   	float *res = (float*)malloc(sizeof(float) * (n1 + n2));
@@ -64,7 +79,7 @@ int main() {
         .size = sizeof(float) * 18
     };
 
-    if (!VKK_InitPipeline()) {
+    if (!VKK_InitPipeline(pushConstantRange)) {
         fprintf(stderr, "Failed to initialize pipeline\n");
         exit(1);
     }
@@ -81,20 +96,21 @@ int main() {
         .vertexStride = sizeof(VKK_Vertex)
     };
 
-    VKK_Pipeline trianglePipeline = VKK_CreatePipeline(pipelineDescription, pushConstantRange);
-
-    static const VKK_Vertex vertices[] = {
-        {{0.0f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-        {{1.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-        {{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}},
+    VKK_PipelineDescription solidPipelineDescription = {
+        .shaderPaths = { .vertexShaderPath = "shader/compiled/vert.spv", .fragmentShaderPath = "shader/compiled/fragSolid.spv" },
+        .attributes = attributes,
+        .attributeCount = 2,
+        .vertexStride = sizeof(VKK_Vertex)
     };
 
-    static const uint16_t indices[] = {
-        0, 1, 2, 
-    };
+    VKK_Pipeline trianglePipeline = VKK_CreatePipeline(pipelineDescription);
+    VKK_Pipeline solidTrianglePipeline = VKK_CreatePipeline(solidPipelineDescription);
 
     VKK_Buffer vertexBuffer = VKK_CreateBuffer(sizeof(VKK_Vertex) * 3, VKK_BUFFER_USAGE_VERTEX);
-    VKK_WriteBuffer(vertexBuffer, vertices, sizeof(VKK_Vertex) * 3, 0);
+    VKK_WriteBuffer(vertexBuffer, verticesLeft, sizeof(VKK_Vertex) * 3, 0);
+
+    VKK_Buffer solidVertexBuffer = VKK_CreateBuffer(sizeof(VKK_Vertex) * 3, VKK_BUFFER_USAGE_VERTEX);
+    VKK_WriteBuffer(solidVertexBuffer, verticesRight, sizeof(VKK_Vertex) * 3, 0);
 
     VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint16_t) * 3, VKK_BUFFER_USAGE_INDEX);
     VKK_WriteBuffer(indexBuffer, indices, sizeof(uint16_t) * 3, 0);
@@ -148,6 +164,7 @@ int main() {
 
         VKK_SetPushConstantData(pushData);
 
+        VKK_Draw(solidTrianglePipeline, solidVertexBuffer, 3, indexBuffer, 3);
         VKK_Draw(trianglePipeline, vertexBuffer, 3, indexBuffer, 3);
 
 	    VKK_PollEvents();
@@ -157,11 +174,13 @@ int main() {
     }
 
     VKK_DestroyBuffer(vertexBuffer);
+    VKK_DestroyBuffer(solidVertexBuffer);
     VKK_DestroyBuffer(indexBuffer);
 
     VKK_DestroyUniform(timeUniform);
     
     VKK_DestroyPipeline(trianglePipeline);
+    VKK_DestroyPipeline(solidTrianglePipeline);
 
     VKK_End();
     VKK_TerminateWindowing();

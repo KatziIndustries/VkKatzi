@@ -104,7 +104,7 @@ typedef struct {
 } VKK_PushConstantRange;
 
 VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config);
-bool VKK_InitPipeline();
+bool VKK_InitPipeline(VKK_PushConstantRange pushConstanRangeConfig);
 void VKK_End(void);
 
 void VKK_Present(void);
@@ -121,7 +121,7 @@ void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCou
 
 void VKK_SetPushConstantData(void* data);
 
-VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc, VKK_PushConstantRange pushConstanRangeConfig);
+VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc);
 void VKK_DestroyPipeline(VKK_Pipeline pipeline);
 
 GLFWwindow* VKK_CreateWindow(int width, int height, char* title);
