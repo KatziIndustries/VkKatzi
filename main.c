@@ -58,7 +58,7 @@ int main() {
     VKK_Config config = {
         .presentMode = VKK_PRESENT_MODE_MAILBOX,
         .imageBufferSize = 3,
-        .enableValidationLayers = false,
+        .enableValidationLayers = true,
         .logWarnings = true
     };
 
