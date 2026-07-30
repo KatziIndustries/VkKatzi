@@ -62,10 +62,15 @@ int main() {
         .verboseLogging = true
     };
 
-    VKK_PhysicalDeviceInfo deviceInfo = VKK_InitDevice(window, config);
-
-    if (!deviceInfo.success) {
+    VKK_InstanceInfo instanceInfo;
+    if (!VKK_InitInstance(window, config, &instanceInfo)) {
         fprintf(stderr, "Failed to initialize Vulkan context\n");
+        exit(1);
+    }
+
+    VKK_PhysicalDeviceInfo deviceInfo;
+    if (!VKK_InitDevice(&deviceInfo)) {
+        fprintf(stderr, "Failed to initialize device\n");
         exit(1);
     }
 

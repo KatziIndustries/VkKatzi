@@ -134,7 +134,7 @@ struct VKK_Pipeline_T {
 static VkContext vkContext;
 static bool verboseLogging = false;
 
-static bool CreateInstance() {
+static bool CreateInstance(VKK_InstanceInfo* instanceInfo) {
 
     uint32_t apiVersion;
     vkEnumerateInstanceVersion(&apiVersion);
@@ -143,9 +143,9 @@ static bool CreateInstance() {
     uint32_t minor = VK_API_VERSION_MINOR(apiVersion);
     uint32_t patch = VK_API_VERSION_PATCH(apiVersion);
 
-    if (verboseLogging) {
-        fprintf(stdout, "[VKK][INFO]: Using Vulkan API version %i.%i.%i\n", major, minor, patch);
-    }
+    instanceInfo->versionMajor = major;
+    instanceInfo->versionMinor = minor;
+    instanceInfo->versionPatch = patch;
 
     const VkApplicationInfo applicationInfo = {
         .apiVersion = apiVersion,
@@ -1392,10 +1392,7 @@ void VKK_Present() {
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config) {
-
-    VKK_PhysicalDeviceInfo deviceInfo;
-    deviceInfo.success = false;
+bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo) {
 
     verboseLogging = config.verboseLogging;
 
@@ -1426,32 +1423,37 @@ VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config) {
     vkContext.extensionsAmount = instanceExtensionsAmount;
     vkContext.extensions = instanceExtensions;
 
-    if (!CreateInstance()) {
-        return deviceInfo;
+
+    if (!CreateInstance(o_instanceInfo)) {
+        return false;
     }
 
     if (!CreateVkSurface()) {
-        return deviceInfo;
+        return false;
     }
 
-    if (!GetPhysicalDevice(&deviceInfo)) {
-        return deviceInfo;
+    return true;
+}
+
+bool VKK_InitDevice(VKK_PhysicalDeviceInfo* o_deviceInfo) {
+
+    if (!GetPhysicalDevice(o_deviceInfo)) {
+        return false;
     }
 
     if (!CreateLogicalDevice()) {
-        return deviceInfo;
+        return false;
     }
 
     if (!CreateVkSwapchain(&vkContext.swapchain)) {
-        return deviceInfo;
+        return false;
     }
 
     if (!CreateRenderPass()) {
-        return deviceInfo;
+        return false;
     }
 
-    deviceInfo.success = true;
-    return deviceInfo;
+    return true;
 }
 
 bool VKK_InitPipeline(VKK_PushConstantRange pushConstantRangeConfig) {

@@ -88,7 +88,6 @@ typedef struct {
 } VKK_Config;
 
 typedef struct {
-    bool success;
     char name[256];
     uint32_t apiVersion;
     uint32_t driverVersion;
@@ -103,7 +102,14 @@ typedef struct {
     uint32_t size;
 } VKK_PushConstantRange;
 
-VKK_PhysicalDeviceInfo VKK_InitDevice(GLFWwindow* window, VKK_Config config);
+typedef struct {
+    uint32_t versionMajor;
+    uint32_t versionMinor;
+    uint32_t versionPatch;
+} VKK_InstanceInfo;
+
+bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
+bool VKK_InitDevice(VKK_PhysicalDeviceInfo* o_deviceInfo);
 bool VKK_InitPipeline(VKK_PushConstantRange pushConstanRangeConfig);
 void VKK_End(void);
 
