@@ -88,12 +88,12 @@ typedef struct {
 } VKK_Config;
 
 typedef struct {
-    char name[256];
+    char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
     uint32_t apiVersion;
     uint32_t driverVersion;
     uint32_t deviceID;
-    VKK_PhysicalDeviceType deviceType;
     uint32_t vendorID;
+    VKK_PhysicalDeviceType deviceType;
 } VKK_PhysicalDeviceInfo;
 
 typedef struct {
@@ -109,7 +109,10 @@ typedef struct {
 } VKK_InstanceInfo;
 
 bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
-bool VKK_InitDevice(VKK_PhysicalDeviceInfo* o_deviceInfo);
+
+uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo* o_devices, uint32_t maxDevices);
+bool VKK_InitDevice(uint32_t deviceIndex);
+
 bool VKK_InitPipeline(VKK_PushConstantRange pushConstanRangeConfig);
 void VKK_End(void);
 

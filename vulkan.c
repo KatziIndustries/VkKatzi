@@ -69,7 +69,10 @@ typedef struct  {
     int windowWidth;
     int windowHeight;
 
+    VkPhysicalDevice availablePhysicalDevices[16];
+    uint32_t availableDeviceCount;
     VkPhysicalDevice physicalDevice;
+
     VkDevice logicalDevice;
 
     int32_t graphicsQueueFamilyIndex;
@@ -192,71 +195,43 @@ static bool CreateVkSurface() {
     return true;
 }
 
-static bool GetPhysicalDevice(VKK_PhysicalDeviceInfo* deviceInfo) {
-    uint32_t deviceCount;
+static bool FindQueueFamilies() {
 
-    vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, NULL);
-    
-    if (deviceCount == 0) {
-        Log("No GPU with Vulkan support found", true);
-        return false;
-    }
+    uint32_t queueCount;
+    vkGetPhysicalDeviceQueueFamilyProperties(vkContext.physicalDevice, &queueCount, NULL);
 
-    VkPhysicalDevice physicalDevices[8];
-    vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, physicalDevices);
+    VkQueueFamilyProperties properties[16];
+    vkGetPhysicalDeviceQueueFamilyProperties(vkContext.physicalDevice, &queueCount, properties);
 
-    for (uint32_t i = 0; i < deviceCount; i++) {
-        VkPhysicalDevice device = physicalDevices[i];
+    int32_t graphicsQueueFamilyIndex = -1;
+    int32_t presentQueueFamilyIndex = -1;
 
-        uint32_t queueCount;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueCount, NULL);
+    for (uint32_t j = 0; j < queueCount; j++) {
 
-        VkQueueFamilyProperties properties[8];
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueCount, properties);
+        if (properties[j].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            graphicsQueueFamilyIndex = j;
 
-        int32_t graphicsQueueFamilyIndex = -1;
-        int32_t presentQueueFamilyIndex = -1;
+            VkBool32 supported = VK_FALSE;
+            vkGetPhysicalDeviceSurfaceSupportKHR(vkContext.physicalDevice, j, vkContext.surface, &supported);
 
-        for (uint32_t j = 0; j < queueCount; j++) {
-            if (properties[j].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                graphicsQueueFamilyIndex = j;
+            if (supported) {
+                presentQueueFamilyIndex = j;
 
-                VkBool32 supported = VK_FALSE;
-                vkGetPhysicalDeviceSurfaceSupportKHR(device, j, vkContext.surface, &supported);
+                vkContext.graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
+                vkContext.presentQueueFamilyIndex = presentQueueFamilyIndex;
 
-                if (supported) {
-                    presentQueueFamilyIndex = j;
-
-                    if (graphicsQueueFamilyIndex != -1)
-                        break;
+                if (verboseLogging) {
+                    Log("Found queue families", false);
                 }
+
+                return true;
             }
-        }
-
-        if (graphicsQueueFamilyIndex != -1 && presentQueueFamilyIndex != -1) {
-            vkContext.physicalDevice = device;
-            vkContext.graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
-            vkContext.presentQueueFamilyIndex = presentQueueFamilyIndex;
-
-            VkPhysicalDeviceProperties properties;
-            vkGetPhysicalDeviceProperties(device, &properties);
-
-            strncpy(deviceInfo->name, properties.deviceName, 256);
-            deviceInfo->apiVersion = properties.apiVersion;
-            deviceInfo->driverVersion = properties.driverVersion;
-            deviceInfo->deviceID = properties.deviceID;
-            deviceInfo->deviceType = properties.deviceType;
-            deviceInfo->vendorID = properties.vendorID;
-
-            if (verboseLogging) {
-                Log("Got physical device", false);
-            }
-
-            return true;
         }
     }
 
-    Log("Failed to get physical device", true);
+    if (verboseLogging) {
+        Log("Failed to find queue families", true);
+    }
 
     return false;
 }
@@ -1392,6 +1367,35 @@ void VKK_Present() {
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
+uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo *o_devices, uint32_t maxDevices) {
+
+    uint32_t deviceCount;
+    vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, NULL);
+
+    VkPhysicalDevice devices[16];
+    deviceCount = deviceCount > 16 ? 16 : deviceCount;
+    vkEnumeratePhysicalDevices(vkContext.instance, &deviceCount, devices);
+
+    uint32_t count = deviceCount > maxDevices ? maxDevices : deviceCount;
+
+    for (uint32_t i = 0; i < count; i++) {
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(devices[i], &properties);
+
+        strncpy(o_devices[i].name, properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
+        o_devices[i].apiVersion = properties.apiVersion;
+        o_devices[i].driverVersion = properties.driverVersion;
+        o_devices[i].vendorID = properties.vendorID;
+        o_devices[i].deviceID = properties.deviceID;
+        o_devices[i].deviceType = properties.deviceType;
+    }
+
+    memcpy(vkContext.availablePhysicalDevices, devices, count * sizeof(VkPhysicalDevice));
+    vkContext.availableDeviceCount = count;
+
+    return count;
+}
+
 bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo) {
 
     verboseLogging = config.verboseLogging;
@@ -1435,9 +1439,16 @@ bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o
     return true;
 }
 
-bool VKK_InitDevice(VKK_PhysicalDeviceInfo* o_deviceInfo) {
+bool VKK_InitDevice(uint32_t deviceIndex) {
 
-    if (!GetPhysicalDevice(o_deviceInfo)) {
+    if (deviceIndex >= vkContext.availableDeviceCount) {
+        fprintf(stderr, "[VKK][ERROR]: invalid device index (%i)\n", deviceIndex);
+        return false;
+    }
+
+    vkContext.physicalDevice = vkContext.availablePhysicalDevices[deviceIndex];
+
+    if (!FindQueueFamilies()) {
         return false;
     }
 

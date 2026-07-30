@@ -58,7 +58,7 @@ int main() {
     VKK_Config config = {
         .presentMode = VKK_PRESENT_MODE_MAILBOX,
         .imageBufferSize = 3,
-        .enableValidationLayers = true,
+        .enableValidationLayers = false,
         .verboseLogging = true
     };
 
@@ -68,8 +68,15 @@ int main() {
         exit(1);
     }
 
-    VKK_PhysicalDeviceInfo deviceInfo;
-    if (!VKK_InitDevice(&deviceInfo)) {
+    VKK_PhysicalDeviceInfo devices[8];
+    uint32_t count = VKK_EnumeratePhysicalDevices(devices, 8);
+
+    for (uint32_t i = 0; i < count; i++) {
+        printf("[Device #%i] %s\n", i, devices[i].name);
+    }
+
+    VKK_PhysicalDeviceInfo deviceInfo = devices[0];
+    if (!VKK_InitDevice(0)) {
         fprintf(stderr, "Failed to initialize device\n");
         exit(1);
     }
