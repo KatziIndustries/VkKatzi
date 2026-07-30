@@ -68,6 +68,8 @@ int main() {
         exit(1);
     }
 
+    printf("Using Vulkan version: %i.%i.%i\n", instanceInfo.versionMajor, instanceInfo.versionMinor, instanceInfo.versionPatch);
+
     VKK_PhysicalDeviceInfo devices[8];
     uint32_t count = VKK_EnumeratePhysicalDevices(devices, 8);
 
@@ -81,7 +83,7 @@ int main() {
         exit(1);
     }
 
-    fprintf(stdout, "[Device]: Name: %s, Api Version: %i, Device ID: %i, Device Type: %i, Driver Version: %i, Vendor ID: %i\n", deviceInfo.name, deviceInfo.apiVersion, deviceInfo.deviceID, deviceInfo.deviceType, deviceInfo.driverVersion, deviceInfo.vendorID);
+    fprintf(stdout, "[Device]: Name: %s, Device Id: %i, Device Type: %i\n", deviceInfo.name, deviceInfo.deviceID, deviceInfo.deviceType);
 
     VKK_Uniform timeUniform = VKK_CreateUniform(0, sizeof(float), VKK_SHADER_STAGE_VERTEX);
 
@@ -180,7 +182,15 @@ int main() {
         VKK_Draw(trianglePipeline, vertexBuffer, 3, indexBuffer, 3);
 
 	    VKK_PollEvents();
-        VKK_Present();
+
+        VKK_Color clearColor = {
+            .r = 0.392f,
+            .g = 0.584f,
+            .b = 0.929f,
+            .a = 1.0f,
+        };
+
+        VKK_Present(clearColor);
 
         free(pushData);
     }

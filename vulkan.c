@@ -897,7 +897,7 @@ static bool CreateSyncObjects() {
     return true;
 }
 
-static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VKK_Color clear) {
     const VkCommandBufferBeginInfo beginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
     };
@@ -906,7 +906,11 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
         return false;
     }
 
-    const VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    const VkClearValue clearColor = {
+        .color = (VkClearColorValue){
+            .float32 = {clear.r, clear.g, clear.b, clear.a}
+        },
+    };
 
     const VkRenderPassBeginInfo renderPassInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -932,7 +936,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     };
 
     const VkRect2D scissor = {
-        .offset = { 0, 0},
+        .offset = { 0, 0 },
         .extent = vkContext.swapchain.dimensions
     };
     
@@ -1240,7 +1244,7 @@ void VKK_SetPushConstantData(void* data) {
     vkContext.pushConstantData = data;
 }
 
-void VKK_Present() {
+void VKK_Present(VKK_Color clearColor) {
     vkWaitForFences(vkContext.logicalDevice, 1, &vkContext.inFlightFences[vkContext.currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
@@ -1257,7 +1261,7 @@ void VKK_Present() {
     vkResetFences(vkContext.logicalDevice, 1, &vkContext.inFlightFences[vkContext.currentFrame]);
 
     vkResetCommandBuffer(vkContext.commandBuffers[imageIndex], 0);
-    RecordCommandBuffer(vkContext.commandBuffers[imageIndex], imageIndex);
+    RecordCommandBuffer(vkContext.commandBuffers[imageIndex], imageIndex, clearColor);
 
     const VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 

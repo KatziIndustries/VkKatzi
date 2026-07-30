@@ -125,6 +125,13 @@ typedef enum {
     VKK_ERROR_DESCRIPTOR_POOL_CREATION_FAILED,
 } VKK_Result;
 
+typedef struct {
+    float r;
+    float g;
+    float b;
+    float a;
+} VKK_Color;
+
 VKK_Result VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
 
 uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo* o_devices, uint32_t maxDevices);
@@ -133,7 +140,7 @@ VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_device
 VKK_Result VKK_InitPipeline(VKK_PushConstantRange pushConstanRangeConfig);
 void VKK_End(void);
 
-void VKK_Present(void);
+void VKK_Present(VKK_Color clearColor);
 
 VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage);
 void VKK_DestroyBuffer(VKK_Buffer buffer);
