@@ -136,8 +136,19 @@ static bool verboseLogging = false;
 
 static bool CreateInstance() {
 
+    uint32_t apiVersion;
+    vkEnumerateInstanceVersion(&apiVersion);
+
+    uint32_t major = VK_API_VERSION_MAJOR(apiVersion);
+    uint32_t minor = VK_API_VERSION_MINOR(apiVersion);
+    uint32_t patch = VK_API_VERSION_PATCH(apiVersion);
+
+    if (verboseLogging) {
+        fprintf(stdout, "[VKK][INFO]: Using Vulkan API version %i.%i.%i\n", major, minor, patch);
+    }
+
     const VkApplicationInfo applicationInfo = {
-        .apiVersion = VK_API_VERSION_1_4,
+        .apiVersion = apiVersion,
         .applicationVersion = VK_MAKE_VERSION(4, 2, 0),
         .engineVersion = VK_MAKE_VERSION(4, 2, 0),
         .pApplicationName = "Katzi Game",
