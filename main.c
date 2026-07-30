@@ -59,7 +59,7 @@ int main() {
         .presentMode = VKK_PRESENT_MODE_MAILBOX,
         .imageBufferSize = 3,
         .enableValidationLayers = false,
-        .verboseLogging = true
+        .logWarnings = true
     };
 
     VKK_InstanceInfo instanceInfo;

@@ -84,7 +84,7 @@ typedef struct {
     VKK_PresentMode presentMode;
     uint32_t imageBufferSize;
     bool enableValidationLayers;
-    bool verboseLogging;
+    bool logWarnings;
 } VKK_Config;
 
 typedef struct {

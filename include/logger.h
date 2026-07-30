@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
-void Log(const char* message, bool error);
+void LogError(const char* message);
+void LogWarn(const char* message);
 
 #endif

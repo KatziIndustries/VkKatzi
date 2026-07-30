@@ -133,9 +133,7 @@ struct VKK_Pipeline_T {
     VkPipelineLayout layout;
 };
 
-
 static VkContext vkContext;
-static bool verboseLogging = false;
 
 static bool CreateInstance(VKK_InstanceInfo* instanceInfo) {
 
@@ -294,8 +292,7 @@ VkPresentModeKHR GetVkSwapchainPresentMode(VkPresentModeKHR* modes, uint32_t mod
         }
     }
 
-    // TODO: Make this a warning
-    Log("Preferred present mode isn't supported, defaulting to FIFO", true);
+    LogWarn("Preferred present mode isn't supported, defaulting to FIFO");
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
@@ -351,13 +348,12 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
     if (DESIRED_IMAGE_COUNT >= info.surfaceCapabilities.minImageCount) {
         imageCount = DESIRED_IMAGE_COUNT;
     } else {
-        // TODO: Make these logs warnings
-        Log("Desired image buffer size was too low; using min image count", true);
+        LogWarn("Desired image buffer size was too low; using min image count");
         imageCount = info.surfaceCapabilities.minImageCount;
     }
 
     if (info.surfaceCapabilities.maxImageCount > 0 && imageCount > info.surfaceCapabilities.maxImageCount) {
-        Log("Desired image count was too high; using max image count", true);
+        LogWarn("Desired image count was too high; using max image count");
         imageCount = info.surfaceCapabilities.maxImageCount;
     }
 
@@ -614,8 +610,7 @@ void VKK_DestroyBuffer(VKK_Buffer buffer) {
         return;
 
     if (vkContext.pendingDeletionCount >= MAX_PENDING_DELETIONS) {
-        // TODO: Make this a warning maybe? Ill figure it out
-        Log("Max pending deletions exceeded", true);
+        LogError("VKK_DestroyBuffer: Max pending deletions exceeded");
         return;
     }
 
@@ -633,7 +628,7 @@ void VKK_DestroyUniform(VKK_Uniform uniform) {
 
 void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t offset) {
     if (!buffer) {
-        Log("VKK_WriteBuffer: buffer is NULL", true);
+        LogError("VKK_WriteBuffer: buffer is NULL");
         return;
     }
 
@@ -1007,11 +1002,10 @@ static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags proper
             }
     }
 
-    Log("Failed to find suitable memory type", true);
+    LogError("Failed to find suitable memory type");
     return UINT32_MAX;
 }
 
-// TODO: Implement VKK_Result with this
 static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* o_buffer, VkDeviceMemory* o_bufferMemory) {
     const VkBufferCreateInfo bufferInfo = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -1021,7 +1015,7 @@ static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
     };
 
     if (vkCreateBuffer(vkContext.logicalDevice, &bufferInfo, NULL, o_buffer) != VK_SUCCESS) {
-        Log("Failed to create buffer", true);
+        LogError("Failed to create buffer");
         return false;
     }
 
@@ -1041,7 +1035,7 @@ static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
     };
 
     if (vkAllocateMemory(vkContext.logicalDevice, &allocateInfo, NULL, o_bufferMemory)) {
-        Log("Failed to allocate buffer memory", true);
+        LogError("Failed to allocate buffer memory");
         return false;
     }
 
@@ -1130,7 +1124,7 @@ VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage) {
     buffer->mappedPtr = NULL;
 
     if (!CreateBuffer(buffer->size, usageFlags, memoryFlags, &buffer->handle, &buffer->memory)) {
-        Log("VKK_CreateBuffer: Failed to create buffer", true);
+        LogError("VKK_CreateBuffer: Failed to create buffer");
         free(buffer);
         return NULL;
     }
@@ -1256,7 +1250,7 @@ void VKK_Present() {
         RecreateSwapchain();
         return;
     } else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
-        Log("Failed to acquire swapchain image", true);
+        LogError("Failed to acquire swapchain image");
         return;
     }
 
@@ -1279,7 +1273,7 @@ void VKK_Present() {
     };
 
     if (vkQueueSubmit(vkContext.graphicsQueue, 1, &submitInfo, vkContext.inFlightFences[vkContext.currentFrame]) != VK_SUCCESS) {
-        Log("Failed to submit draw command buffer", true);
+        LogError("Failed to submit draw command buffer");
         return;
     }
 
@@ -1298,7 +1292,7 @@ void VKK_Present() {
         vkContext.frameBufferResized = false;
         RecreateSwapchain();
     } else if (presentResult != VK_SUCCESS) {
-        Log("Failed to present swapchain image", true);
+        LogError("Failed to present swapchain image");
     }
 
     ProcessPendingDeletions();
@@ -1329,7 +1323,7 @@ uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo *o_devices, uint32_
 
 VKK_Result VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo) {
 
-    verboseLogging = config.verboseLogging;
+    logWarnings = config.logWarnings;
 
     PREFERRED_PRESENT_MODE = config.presentMode;
     DESIRED_IMAGE_COUNT = config.imageBufferSize;
