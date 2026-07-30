@@ -75,8 +75,8 @@ int main() {
         printf("[Device #%i] %s\n", i, devices[i].name);
     }
 
-    VKK_PhysicalDeviceInfo deviceInfo = devices[0];
-    if (!VKK_InitDevice(0)) {
+    VKK_PhysicalDeviceInfo deviceInfo;
+    if (!VKK_InitDevice(0, &deviceInfo)) {
         fprintf(stderr, "Failed to initialize device\n");
         exit(1);
     }

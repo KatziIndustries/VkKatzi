@@ -1303,6 +1303,21 @@ static void ProcessPendingDeletionsImmediate() {
     }
 }
 
+
+static void FillPhysicalDeviceInfo(VkPhysicalDevice device, VKK_PhysicalDeviceInfo* o_deviceInfo) {
+
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(device, &properties);
+
+    strncpy(o_deviceInfo->name, properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
+    o_deviceInfo->apiVersion = properties.apiVersion;
+    o_deviceInfo->driverVersion = properties.driverVersion;
+    o_deviceInfo->vendorID = properties.vendorID;
+    o_deviceInfo->deviceID = properties.deviceID;
+    o_deviceInfo->deviceType = properties.deviceType;
+
+}
+
 void VKK_SetPushConstantData(void* data) {
     vkContext.pushConstantData = data;
 }
@@ -1379,15 +1394,7 @@ uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo *o_devices, uint32_
     uint32_t count = deviceCount > maxDevices ? maxDevices : deviceCount;
 
     for (uint32_t i = 0; i < count; i++) {
-        VkPhysicalDeviceProperties properties;
-        vkGetPhysicalDeviceProperties(devices[i], &properties);
-
-        strncpy(o_devices[i].name, properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
-        o_devices[i].apiVersion = properties.apiVersion;
-        o_devices[i].driverVersion = properties.driverVersion;
-        o_devices[i].vendorID = properties.vendorID;
-        o_devices[i].deviceID = properties.deviceID;
-        o_devices[i].deviceType = properties.deviceType;
+        FillPhysicalDeviceInfo(devices[i], &o_devices[i]);
     }
 
     memcpy(vkContext.availablePhysicalDevices, devices, count * sizeof(VkPhysicalDevice));
@@ -1439,7 +1446,7 @@ bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o
     return true;
 }
 
-bool VKK_InitDevice(uint32_t deviceIndex) {
+bool VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_deviceInfo) {
 
     if (deviceIndex >= vkContext.availableDeviceCount) {
         fprintf(stderr, "[VKK][ERROR]: invalid device index (%i)\n", deviceIndex);
@@ -1447,6 +1454,7 @@ bool VKK_InitDevice(uint32_t deviceIndex) {
     }
 
     vkContext.physicalDevice = vkContext.availablePhysicalDevices[deviceIndex];
+    FillPhysicalDeviceInfo(vkContext.physicalDevice, o_deviceInfo);
 
     if (!FindQueueFamilies()) {
         return false;

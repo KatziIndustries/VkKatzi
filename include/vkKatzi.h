@@ -111,7 +111,7 @@ typedef struct {
 bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
 
 uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo* o_devices, uint32_t maxDevices);
-bool VKK_InitDevice(uint32_t deviceIndex);
+bool VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_deviceInfo);
 
 bool VKK_InitPipeline(VKK_PushConstantRange pushConstanRangeConfig);
 void VKK_End(void);
