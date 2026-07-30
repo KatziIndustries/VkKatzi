@@ -63,7 +63,7 @@ int main() {
     };
 
     VKK_InstanceInfo instanceInfo;
-    if (!VKK_InitInstance(window, config, &instanceInfo)) {
+    if (VKK_InitInstance(window, config, &instanceInfo) != VKK_SUCCESS) {
         fprintf(stderr, "Failed to initialize Vulkan context\n");
         exit(1);
     }
@@ -76,7 +76,7 @@ int main() {
     }
 
     VKK_PhysicalDeviceInfo deviceInfo;
-    if (!VKK_InitDevice(0, &deviceInfo)) {
+    if (VKK_InitDevice(0, &deviceInfo) != VKK_SUCCESS) {
         fprintf(stderr, "Failed to initialize device\n");
         exit(1);
     }
@@ -91,7 +91,7 @@ int main() {
         .size = sizeof(float) * 18
     };
 
-    if (!VKK_InitPipeline(pushConstantRange)) {
+    if (VKK_InitPipeline(pushConstantRange) != VKK_SUCCESS) {
         fprintf(stderr, "Failed to initialize pipeline\n");
         exit(1);
     }

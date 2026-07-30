@@ -108,12 +108,29 @@ typedef struct {
     uint32_t versionPatch;
 } VKK_InstanceInfo;
 
-bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
+typedef enum {
+    VKK_SUCCESS = 0,
+    VKK_ERROR_INSTANCE_CREATION_FAILED,
+    VKK_ERROR_SURFACE_CREATION_FAILED,
+    VKK_ERROR_NO_SUITABLE_DEVICE,
+    VKK_ERROR_INVALID_DEVICE_INDEX,
+    VKK_ERROR_DEVICE_CREATION_FAILED,
+    VKK_ERROR_SWAPCHAIN_CREATION_FAILED,
+    VKK_ERROR_RENDER_PASS_CREATION_FAILED,
+    VKK_ERROR_DESCRIPTOR_SET_LAYOUT_CREATION_FAILED,
+    VKK_ERROR_FRAMEBUFFER_CREATION_FAILED,
+    VKK_ERROR_COMMAND_POOL_CREATION_FAILED,
+    VKK_ERROR_COMMAND_BUFFER_CREATION_FAILED,
+    VKK_ERROR_SYNC_OBJECTS_CREATION_FAILED,
+    VKK_ERROR_DESCRIPTOR_POOL_CREATION_FAILED,
+} VKK_Result;
+
+VKK_Result VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
 
 uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo* o_devices, uint32_t maxDevices);
-bool VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_deviceInfo);
+VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_deviceInfo);
 
-bool VKK_InitPipeline(VKK_PushConstantRange pushConstanRangeConfig);
+VKK_Result VKK_InitPipeline(VKK_PushConstantRange pushConstanRangeConfig);
 void VKK_End(void);
 
 void VKK_Present(void);

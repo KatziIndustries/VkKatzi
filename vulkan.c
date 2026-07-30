@@ -169,12 +169,7 @@ static bool CreateInstance(VKK_InstanceInfo* instanceInfo) {
     };
 
     if (vkCreateInstance(&instanceCreateInfo, NULL, &vkContext.instance) != VK_SUCCESS) {
-        Log("Failed to create Vulkan instance", true);
         return false;
-    }
-
-    if (verboseLogging) {
-        Log("Created Vulkan instance", false);
     }
 
     return true;
@@ -184,12 +179,7 @@ static bool CreateVkSurface() {
     glfwCreateWindowSurface(vkContext.instance, vkContext.window, NULL, &vkContext.surface);
 
     if (!vkContext.surface) {
-        Log("Failed to create Vulkan surface", true);
         return false;
-    }
-
-    if (verboseLogging) {
-        Log("Created Vulkan surface", false);
     }
 
     return true;
@@ -220,17 +210,9 @@ static bool FindQueueFamilies() {
                 vkContext.graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
                 vkContext.presentQueueFamilyIndex = presentQueueFamilyIndex;
 
-                if (verboseLogging) {
-                    Log("Found queue families", false);
-                }
-
                 return true;
             }
         }
-    }
-
-    if (verboseLogging) {
-        Log("Failed to find queue families", true);
     }
 
     return false;
@@ -273,16 +255,11 @@ static bool CreateLogicalDevice() {
     };
 
     if (vkCreateDevice(vkContext.physicalDevice, &deviceCreateInfo, NULL, &vkContext.logicalDevice) != VK_SUCCESS) {
-        Log("Failed to create physical device", true);
         return false;
     }
 
     vkGetDeviceQueue(vkContext.logicalDevice, vkContext.graphicsQueueFamilyIndex, 0, &vkContext.graphicsQueue);
     vkGetDeviceQueue(vkContext.logicalDevice, vkContext.presentQueueFamilyIndex, 0, &vkContext.presentQueue);
-
-    if (verboseLogging) {
-        Log("Created physical device", false);
-    }
 
     return true;
 }
@@ -317,6 +294,7 @@ VkPresentModeKHR GetVkSwapchainPresentMode(VkPresentModeKHR* modes, uint32_t mod
         }
     }
 
+    // TODO: Make this a warning
     Log("Preferred present mode isn't supported, defaulting to FIFO", true);
     return VK_PRESENT_MODE_FIFO_KHR;
 }
@@ -373,6 +351,7 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
     if (DESIRED_IMAGE_COUNT >= info.surfaceCapabilities.minImageCount) {
         imageCount = DESIRED_IMAGE_COUNT;
     } else {
+        // TODO: Make these logs warnings
         Log("Desired image buffer size was too low; using min image count", true);
         imageCount = info.surfaceCapabilities.minImageCount;
     }
@@ -413,7 +392,6 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
     }
 
     if (vkCreateSwapchainKHR(vkContext.logicalDevice, &swapchainInfo, NULL, &o_swapchain->swapchainHandle) != VK_SUCCESS) {
-        Log("Failed to create swapchain", true);
         return false;
     }
 
@@ -442,13 +420,8 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
         };
 
         if (!vkCreateImageView(vkContext.logicalDevice, &info, NULL, &o_swapchain->imageViews[i]) == VK_SUCCESS) {
-            Log("Failed to create swapchain", true);
             return false;
         }
-    }
-
-    if (verboseLogging) {
-        Log("Created swapchain", false);
     }
 
     return true;
@@ -498,12 +471,7 @@ static bool CreateRenderPass() {
     };
 
     if (vkCreateRenderPass(vkContext.logicalDevice, &renderPassCreateInfo, NULL, &vkContext.renderPass) != VK_SUCCESS) {
-        Log("Failed to create render pass", true);
         return false;
-    }
-
-    if (verboseLogging) {
-        Log("Created render pass", false);
     }
 
     return true;
@@ -530,14 +498,9 @@ static bool CreateFrameBuffers(VkSwapchain* swapchain) {
         };
 
         if (vkCreateFramebuffer(vkContext.logicalDevice, &framebufferInfo, NULL, &swapchain->framebuffers[i]) != VK_SUCCESS) {
-            fprintf(stderr, "[VKK][ERROR]: Failed to create Vulkan Framebuffer %u\n", i);
             return false;
         }
 
-    }
-
-    if (verboseLogging) {
-        fprintf(stdout, "[VKK][INFO]: Created %u Vulkan framebuffers\n", swapchain->imageCount);
     }
 
     return true;
@@ -551,12 +514,7 @@ static bool CreateCommandPool() {
     };
 
     if (vkCreateCommandPool(vkContext.logicalDevice, &poolInfo, NULL, &vkContext.commandPool) != VK_SUCCESS) {
-        Log("Failed to create command pool", true);
         return false;
-    }
-
-    if (verboseLogging) {
-        Log("Created command pool", false);
     }
 
     return true;
@@ -573,12 +531,7 @@ static bool CreateCommandBuffers() {
     };
 
     if (vkAllocateCommandBuffers(vkContext.logicalDevice, &allocateInfo, vkContext.commandBuffers) != VK_SUCCESS) {
-        Log("Failed to allocate command buffers", true);
         return false;
-    }
-
-    if (verboseLogging) {
-        fprintf(stdout, "[VKK][INFO]: Allocated %u Vulkan command buffers\n", vkContext.swapchain.imageCount);
     }
 
     return true;
@@ -621,7 +574,6 @@ static VkShaderModule CreateShaderModule(const char* path) {
     free(code);
 
     if (result != VK_SUCCESS) {
-        fprintf(stderr, "[VKK][ERROR]: Failed to create Vulkan shader module: %s\n", path);
         return VK_NULL_HANDLE;
     }
 
@@ -662,6 +614,7 @@ void VKK_DestroyBuffer(VKK_Buffer buffer) {
         return;
 
     if (vkContext.pendingDeletionCount >= MAX_PENDING_DELETIONS) {
+        // TODO: Make this a warning maybe? Ill figure it out
         Log("Max pending deletions exceeded", true);
         return;
     }
@@ -878,7 +831,6 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
     VKK_Pipeline pipeline = malloc(sizeof(struct VKK_Pipeline_T));
 
     if (vkCreatePipelineLayout(vkContext.logicalDevice, &layoutInfo, NULL, &pipeline->layout) != VK_SUCCESS) {
-        Log("Failed to create pipeline layout", true);
         free(pipeline);
         return false;
     }
@@ -900,7 +852,6 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
     };
 
     if (vkCreateGraphicsPipelines(vkContext.logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &pipeline->handle) != VK_SUCCESS) {
-        Log("Failed to create graphics pipeline", true);
         vkDestroyPipelineLayout(vkContext.logicalDevice, pipeline->layout, NULL);
         free(pipeline);
         return false;
@@ -908,10 +859,6 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
 
     vkDestroyShaderModule(vkContext.logicalDevice, vertModule, NULL);
     vkDestroyShaderModule(vkContext.logicalDevice, fragModule, NULL);
-
-    if (verboseLogging) {
-        Log("Created graphics pipeline", false);
-    }
 
     return pipeline;
 }
@@ -940,7 +887,6 @@ static bool CreateSyncObjects() {
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (vkCreateSemaphore(vkContext.logicalDevice, &semaphoreInfo, NULL, &vkContext.imageAvailableSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(vkContext.logicalDevice, &fenceInfo, NULL, &vkContext.inFlightFences[i]) != VK_SUCCESS) {
-                fprintf(stderr, "[VKK][ERROR]: Failed to create sync objects for frame %u\n", i);
                 return false;
             }
     }
@@ -949,14 +895,8 @@ static bool CreateSyncObjects() {
 
     for (uint32_t i = 0; i < vkContext.swapchain.imageCount; i++) {
         if (vkCreateSemaphore(vkContext.logicalDevice, &semaphoreInfo, NULL, &vkContext.renderFinishedSemaphores[i]) != VK_SUCCESS) {
-            fprintf(stderr, "[VKK][ERROR]: Failed to create render finished semaphores for image %u\n", i);
             return false;
         }
-    }
-
-
-    if (verboseLogging) {
-        Log("Created sync objects", false);
     }
 
     return true;
@@ -968,7 +908,6 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     };
 
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-        Log("Failed to begin recording command buffer", true);
         return false;
     }
 
@@ -1033,7 +972,6 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-        Log("Failed to record command buffer", true);
         return false;
     }
 
@@ -1073,6 +1011,7 @@ static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags proper
     return UINT32_MAX;
 }
 
+// TODO: Implement VKK_Result with this
 static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* o_buffer, VkDeviceMemory* o_bufferMemory) {
     const VkBufferCreateInfo bufferInfo = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -1131,12 +1070,7 @@ static bool CreateDescriptorSetLayout() {
     };
 
     if (vkCreateDescriptorSetLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.descriptorSetLayout) != VK_SUCCESS) {
-        Log("Failed to create descriptor set layout", true);
         return false;
-    }
-
-    if (verboseLogging) {
-        Log("Created descriptor set layout", false);
     }
 
     return true;
@@ -1181,10 +1115,6 @@ static bool RecreateSwapchain() {
         return false;
     }
 
-    if (verboseLogging) {
-        Log("Recreated swapchain", false);
-    }
-
     return true;
 }
 
@@ -1223,7 +1153,6 @@ static bool CreateDescriptorPoolAndSet() {
     };
 
     if (vkCreateDescriptorPool(vkContext.logicalDevice, &poolInfo, NULL, &vkContext.descriptorPool) != VK_SUCCESS) {
-        Log("Failed to create descriptor pool", true);
         return false;
     }
 
@@ -1235,7 +1164,6 @@ static bool CreateDescriptorPoolAndSet() {
     };
 
     if (vkAllocateDescriptorSets(vkContext.logicalDevice, &allocateInfo, &vkContext.descriptorSet) != VK_SUCCESS) {
-        Log("Failed to allocate descriptor set", true);
         return false;
     }
 
@@ -1261,10 +1189,6 @@ static bool CreateDescriptorPoolAndSet() {
     }
 
     vkUpdateDescriptorSets(vkContext.logicalDevice, vkContext.uniformCount, writes, 0, NULL);
-
-    if (verboseLogging) {
-        fprintf(stdout, "[VKK][INFO]: Created descriptor set (%u uniforms bound)\n", vkContext.uniformCount);
-    }
 
     return true;
 }
@@ -1403,7 +1327,7 @@ uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo *o_devices, uint32_
     return count;
 }
 
-bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo) {
+VKK_Result VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo) {
 
     verboseLogging = config.verboseLogging;
 
@@ -1436,78 +1360,77 @@ bool VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o
 
 
     if (!CreateInstance(o_instanceInfo)) {
-        return false;
+        return VKK_ERROR_INSTANCE_CREATION_FAILED;
     }
 
     if (!CreateVkSurface()) {
-        return false;
+        return VKK_ERROR_SURFACE_CREATION_FAILED;
     }
 
-    return true;
+    return VKK_SUCCESS;
 }
 
-bool VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_deviceInfo) {
+VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_deviceInfo) {
 
     if (deviceIndex >= vkContext.availableDeviceCount) {
-        fprintf(stderr, "[VKK][ERROR]: invalid device index (%i)\n", deviceIndex);
-        return false;
+        return VKK_ERROR_INVALID_DEVICE_INDEX;
     }
 
     vkContext.physicalDevice = vkContext.availablePhysicalDevices[deviceIndex];
     FillPhysicalDeviceInfo(vkContext.physicalDevice, o_deviceInfo);
 
     if (!FindQueueFamilies()) {
-        return false;
+        return VKK_ERROR_NO_SUITABLE_DEVICE;
     }
 
     if (!CreateLogicalDevice()) {
-        return false;
+        return VKK_ERROR_DEVICE_CREATION_FAILED;
     }
 
     if (!CreateVkSwapchain(&vkContext.swapchain)) {
-        return false;
+        return VKK_ERROR_SWAPCHAIN_CREATION_FAILED;
     }
 
     if (!CreateRenderPass()) {
-        return false;
+        return VKK_ERROR_RENDER_PASS_CREATION_FAILED;
     }
 
-    return true;
+    return VKK_SUCCESS;
 }
 
-bool VKK_InitPipeline(VKK_PushConstantRange pushConstantRangeConfig) {
+VKK_Result VKK_InitPipeline(VKK_PushConstantRange pushConstantRangeConfig) {
 
     vkContext.pushConstantRange = pushConstantRangeConfig;
 
     if (!CreateDescriptorSetLayout()) {
-        return false;
+        return VKK_ERROR_DESCRIPTOR_SET_LAYOUT_CREATION_FAILED;
     }
 
     vkContext.pipelineFinalized = true;
 
     if (!CreateFrameBuffers(&vkContext.swapchain)) {
-        return false;
+        return VKK_ERROR_FRAMEBUFFER_CREATION_FAILED;
     }
 
     if (!CreateCommandPool()) {
-        return false;
+        return VKK_ERROR_COMMAND_POOL_CREATION_FAILED;
     }
 
     if (!CreateCommandBuffers()) {
-        return false;
+        return VKK_ERROR_COMMAND_BUFFER_CREATION_FAILED;
     }
 
     if (!CreateSyncObjects()) {
-        return false;
+        return VKK_ERROR_SYNC_OBJECTS_CREATION_FAILED;
     }
 
     if (!CreateDescriptorPoolAndSet()) {
-        return false;
+        return VKK_ERROR_DESCRIPTOR_POOL_CREATION_FAILED;
     }
 
     vkContext.currentFrame = 0;
 
-    return true;
+    return VKK_SUCCESS;
 }
 
 void VKK_End() {
