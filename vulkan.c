@@ -1136,7 +1136,7 @@ VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage) {
     return buffer;
 }
 
-static bool CreateDescriptorPoolAndSet() {
+static bool CreateDescriptorPoolAndSet(uint32_t maxSets) {
 
     const VkDescriptorPoolSize poolSize = {
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1147,7 +1147,7 @@ static bool CreateDescriptorPoolAndSet() {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .poolSizeCount = 1,
         .pPoolSizes = &poolSize,
-        .maxSets = 1
+        .maxSets = maxSets
     };
 
     if (vkCreateDescriptorPool(vkContext.logicalDevice, &poolInfo, NULL, &vkContext.descriptorPool) != VK_SUCCESS) {
@@ -1396,9 +1396,11 @@ VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_device
     return VKK_SUCCESS;
 }
 
-VKK_Result VKK_InitPipeline(VKK_PushConstantRange pushConstantRangeConfig) {
+VKK_Result VKK_InitRenderer(VKK_RendererConfig rendererConfig) {
 
-    vkContext.pushConstantRange = pushConstantRangeConfig;
+    vkContext.pushConstantRange = rendererConfig.pushConstantRange;
+
+    uint32_t maxSets = rendererConfig.maxDescriptorSets > 0 ? rendererConfig.maxDescriptorSets : 16;
 
     if (!CreateDescriptorSetLayout()) {
         return VKK_ERROR_DESCRIPTOR_SET_LAYOUT_CREATION_FAILED;
@@ -1422,7 +1424,7 @@ VKK_Result VKK_InitPipeline(VKK_PushConstantRange pushConstantRangeConfig) {
         return VKK_ERROR_SYNC_OBJECTS_CREATION_FAILED;
     }
 
-    if (!CreateDescriptorPoolAndSet()) {
+    if (!CreateDescriptorPoolAndSet(maxSets)) {
         return VKK_ERROR_DESCRIPTOR_POOL_CREATION_FAILED;
     }
 

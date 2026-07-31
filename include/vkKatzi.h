@@ -103,6 +103,11 @@ typedef struct {
 } VKK_PushConstantRange;
 
 typedef struct {
+    VKK_PushConstantRange pushConstantRange;
+    uint32_t maxDescriptorSets;
+} VKK_RendererConfig;
+
+typedef struct {
     uint32_t versionMajor;
     uint32_t versionMinor;
     uint32_t versionPatch;
@@ -137,7 +142,7 @@ VKK_Result VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceI
 uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo* o_devices, uint32_t maxDevices);
 VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_deviceInfo);
 
-VKK_Result VKK_InitPipeline(VKK_PushConstantRange pushConstanRangeConfig);
+VKK_Result VKK_InitRenderer(VKK_RendererConfig rendererConfig);
 void VKK_End(void);
 
 void VKK_Present(VKK_Color clearColor);

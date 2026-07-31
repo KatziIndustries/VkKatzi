@@ -56,7 +56,7 @@ int main() {
     window = VKK_CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol");
 
     VKK_Config config = {
-        .presentMode = VKK_PRESENT_MODE_MAILBOX,
+        .presentMode = VKK_PRESENT_MODE_FIFO_RELAXED,
         .imageBufferSize = 3,
         .enableValidationLayers = true,
         .logWarnings = true
@@ -68,7 +68,7 @@ int main() {
         exit(1);
     }
 
-    printf("Using Vulkan version: %i.%i.%i\n", instanceInfo.versionMajor, instanceInfo.versionMinor, instanceInfo.versionPatch);
+    printf("[Vulkan] Version: %i.%i.%i\n", instanceInfo.versionMajor, instanceInfo.versionMinor, instanceInfo.versionPatch);
 
     VKK_PhysicalDeviceInfo devices[8];
     uint32_t count = VKK_EnumeratePhysicalDevices(devices, 8);
@@ -83,7 +83,7 @@ int main() {
         exit(1);
     }
 
-    fprintf(stdout, "[Device]: Name: %s, Device Id: %i, Device Type: %i\n", deviceInfo.name, deviceInfo.deviceID, deviceInfo.deviceType);
+    fprintf(stdout, "[Selected Device]: Name: %s, Device Id: %i, Device Type: %i\n", deviceInfo.name, deviceInfo.deviceID, deviceInfo.deviceType);
 
     VKK_Uniform timeUniform = VKK_CreateUniform(0, sizeof(float), VKK_SHADER_STAGE_VERTEX);
 
@@ -93,7 +93,11 @@ int main() {
         .size = sizeof(float) * 18
     };
 
-    if (VKK_InitPipeline(pushConstantRange) != VKK_SUCCESS) {
+    VKK_RendererConfig renderConfig = {
+        .pushConstantRange = pushConstantRange,   
+    };
+
+    if (VKK_InitRenderer(renderConfig) != VKK_SUCCESS) {
         fprintf(stderr, "Failed to initialize pipeline\n");
         exit(1);
     }
@@ -184,9 +188,9 @@ int main() {
 	    VKK_PollEvents();
 
         VKK_Color clearColor = {
-            .r = 0.392f,
-            .g = 0.584f,
-            .b = 0.929f,
+            .r = 0.0f,
+            .g = 0.0f,
+            .b = 0.0f,
             .a = 1.0f,
         };
 
