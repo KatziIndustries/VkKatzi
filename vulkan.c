@@ -7,7 +7,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include "include/shared.h"
-#include "include/vkKatzi.h"
+#include "include/vkkatzi.h"
 #include "include/logger.h"
 
 VkPresentModeKHR PREFERRED_PRESENT_MODE;
@@ -65,9 +65,8 @@ typedef struct  {
 
     VkSurfaceKHR surface;
 
-    GLFWwindow* window;
-    int windowWidth;
-    int windowHeight;
+    uint32_t windowWidth;
+    uint32_t windowHeight;
 
     VkPhysicalDevice availablePhysicalDevices[16];
     uint32_t availableDeviceCount;
@@ -104,8 +103,6 @@ typedef struct  {
     PendingDeletion pendingDeletions[MAX_PENDING_DELETIONS];
     uint32_t pendingDeletionCount;
 
-    bool frameBufferResized;
-
     VKK_Uniform uniforms[MAX_UNIFORMS];
     uint32_t uniformCount;
     bool pipelineFinalized;
@@ -131,6 +128,14 @@ struct VKK_Uniform_T {
 struct VKK_Pipeline_T {
     VkPipeline handle;
     VkPipelineLayout layout;
+};
+
+struct VKK_Instance_T {
+    VkInstance handle;
+};
+
+struct VKK_Surface_T {
+    VkSurfaceKHR handle;
 };
 
 static VkContext vkContext;
@@ -170,15 +175,10 @@ static bool CreateInstance(VKK_InstanceInfo* instanceInfo) {
         return false;
     }
 
-    return true;
-}
+    VKK_Instance instance = malloc(sizeof(struct VKK_Instance_T));
+    instance->handle = vkContext.instance;
 
-static bool CreateVkSurface() {
-    glfwCreateWindowSurface(vkContext.instance, vkContext.window, NULL, &vkContext.surface);
-
-    if (!vkContext.surface) {
-        return false;
-    }
+    instanceInfo->instance = instance;
 
     return true;
 }
@@ -1089,18 +1089,6 @@ static void CleanupSwapchain() {
 
 static bool RecreateSwapchain() {
 
-    int width = 0;
-    int height = 0;
-    glfwGetFramebufferSize(vkContext.window, &width, &height);
-
-    while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(vkContext.window, &width, &height);
-        glfwWaitEvents();
-    }
-
-    vkContext.windowWidth = width;
-    vkContext.windowHeight = height;
-
     vkDeviceWaitIdle(vkContext.logicalDevice);
 
     CleanupSwapchain();
@@ -1114,6 +1102,12 @@ static bool RecreateSwapchain() {
     }
 
     return true;
+}
+
+void VKK_SetFramebufferSize(uint32_t width, uint32_t height) {
+    vkContext.windowWidth = width;
+    vkContext.windowHeight = height;
+    RecreateSwapchain();
 }
 
 VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage) {
@@ -1191,11 +1185,6 @@ static bool CreateDescriptorPoolAndSet(uint32_t maxSets) {
     return true;
 }
 
-static void FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
-    VkContext* vkContext = (VkContext*)glfwGetWindowUserPointer(window);
-    vkContext->frameBufferResized = true;
-}
-
 static void DestroyBuffer(VKK_Buffer buffer) {
     vkDestroyBuffer(vkContext.logicalDevice, buffer->handle, NULL);
     vkFreeMemory(vkContext.logicalDevice, buffer->memory, NULL);
@@ -1238,6 +1227,16 @@ static void FillPhysicalDeviceInfo(VkPhysicalDevice device, VKK_PhysicalDeviceIn
     o_deviceInfo->deviceID = properties.deviceID;
     o_deviceInfo->deviceType = properties.deviceType;
 
+}
+
+VkInstance _VKK_Internal_GetRawInstanceHandle(VKK_Instance instance) {
+    return instance->handle;
+}
+
+VKK_Surface _VKK_Internal_WrapSurface(VkSurfaceKHR rawSurface) {
+    VKK_Surface surface = malloc(sizeof(struct VKK_Surface_T));
+    surface->handle = rawSurface;
+    return surface;
 }
 
 void VKK_SetPushConstantData(void* data) {
@@ -1292,9 +1291,10 @@ void VKK_Present(VKK_Color clearColor) {
 
     VkResult presentResult = vkQueuePresentKHR(vkContext.presentQueue, &presentInfo);
 
-    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || vkContext.frameBufferResized) {
-        vkContext.frameBufferResized = false;
-        RecreateSwapchain();
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+        if (!RecreateSwapchain()) {
+            LogError("Failed to recreate swapchain");
+        }
     } else if (presentResult != VK_SUCCESS) {
         LogError("Failed to present swapchain image");
     }
@@ -1325,22 +1325,19 @@ uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo *o_devices, uint32_
     return count;
 }
 
-VKK_Result VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo) {
+void VKK_SetSurface(VKK_Surface surface, uint32_t width, uint32_t height) {
+    vkContext.surface = surface->handle;
+
+    vkContext.windowWidth = width;
+    vkContext.windowHeight = height;
+}
+
+VKK_Result VKK_InitInstance(VKK_Config config, VKK_InstanceInfo* o_instanceInfo) {
 
     logWarnings = config.logWarnings;
 
     PREFERRED_PRESENT_MODE = config.presentMode;
     DESIRED_IMAGE_COUNT = config.imageBufferSize;
-
-    glfwSetWindowUserPointer(window, &vkContext);
-    glfwSetFramebufferSizeCallback(window, FramebufferResizeCallback);
-
-    vkContext.window = window;
-
-    glfwGetFramebufferSize(window, &vkContext.windowWidth, &vkContext.windowHeight);
-
-    uint32_t instanceExtensionsAmount;
-    const char** instanceExtensions = glfwGetRequiredInstanceExtensions(&instanceExtensionsAmount);
 
     if (config.enableValidationLayers) {
         const char* layers[] = { 
@@ -1353,16 +1350,11 @@ VKK_Result VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceI
         vkContext.layersAmount = 0;
     }
 
-    vkContext.extensionsAmount = instanceExtensionsAmount;
-    vkContext.extensions = instanceExtensions;
-
+    vkContext.extensionsAmount = config.requiredExtensionsCount;
+    vkContext.extensions = config.requiredExtensions;
 
     if (!CreateInstance(o_instanceInfo)) {
         return VKK_ERROR_INSTANCE_CREATION_FAILED;
-    }
-
-    if (!CreateVkSurface()) {
-        return VKK_ERROR_SURFACE_CREATION_FAILED;
     }
 
     return VKK_SUCCESS;

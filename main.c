@@ -3,13 +3,18 @@
 #include <string.h>
 
 #include "include/shared.h"
-#include "include/vkKatzi.h"
+#include "include/vkkatzi.h"
+#include "include/vkkatzi_glfw.h"
 
 const int WINDOW_WIDTH = 640;
 const int WINDOW_HEIGHT = 480;
 
-int lastWindowWidth = WINDOW_WIDTH;
-int lastWindowHeight = WINDOW_HEIGHT;
+const double RESIZE_DEBOUNCE_TIME = 0.1;
+double resizeTimer = 0.0;
+bool resizePending = false;
+
+uint32_t windowWidth;
+uint32_t windowHeight;
 
 GLFWwindow* window;
 
@@ -51,22 +56,51 @@ static void CreateOrthoMatrix(float* o_matrix, float width, float height) {
     o_matrix[15] = 1.0f;
 }
 
+void OnWindowResize() {
+    glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+}
+
 int main() {
 
-    window = VKK_CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol");
+    if (!glfwInit()) {
+        fprintf(stderr, "Failed to initialize glfw\n");
+        exit(1);
+    }
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol", NULL, NULL);
+
+    if (!window) {
+        fprintf(stderr, "Failed to create window\n");
+        glfwTerminate();
+        exit(1);
+    }
+
+    uint32_t requiredExtensionsCount;
+    const char** requiredExtensions = glfwGetRequiredInstanceExtensions(&requiredExtensionsCount);
 
     VKK_Config config = {
         .presentMode = VKK_PRESENT_MODE_FIFO_RELAXED,
         .imageBufferSize = 3,
         .enableValidationLayers = true,
-        .logWarnings = true
+        .logWarnings = true,
+        .requiredExtensions = requiredExtensions,
+        .requiredExtensionsCount = requiredExtensionsCount
     };
 
     VKK_InstanceInfo instanceInfo;
-    if (VKK_InitInstance(window, config, &instanceInfo) != VKK_SUCCESS) {
+    if (VKK_InitInstance(config, &instanceInfo) != VKK_SUCCESS) {
         fprintf(stderr, "Failed to initialize Vulkan context\n");
         exit(1);
     }
+
+    VKK_Surface surface;
+    VKK_CreateSurfaceGLFW(window, instanceInfo.instance, &surface);
+
+    uint32_t surfaceWidth;
+    uint32_t surfaceHeight;
+    glfwGetFramebufferSize(window, &surfaceHeight, &surfaceHeight);
+    VKK_SetSurface(surface, surfaceWidth, surfaceHeight);
 
     printf("[Vulkan] Version: %i.%i.%i\n", instanceInfo.versionMajor, instanceInfo.versionMinor, instanceInfo.versionPatch);
 
@@ -136,11 +170,16 @@ int main() {
     float elapsedTime = 0;
     float elapsedTotal = 0;
     
-    double lastFrameTime = VKK_GetTime();
+    double lastFrameTime = glfwGetTime();
 
-    while (!VKK_WindowShouldClose(window))
+    int lastWindowWidth = surfaceWidth;
+    int lastWindowHeight = surfaceHeight;
+
+    glfwSetWindowSizeCallback(window, (void*)OnWindowResize);
+    
+    while (!glfwWindowShouldClose(window))
     {
-        double currentTime = VKK_GetTime();
+        double currentTime = glfwGetTime();
         double deltaTime = currentTime - lastFrameTime;
         lastFrameTime = currentTime;
 
@@ -153,7 +192,7 @@ int main() {
             elapsedTime = 0;
         }
 
-        int pressed = VKK_GetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+        int pressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
 
         if (pressed == 1 && !leftMousePressed) {
             leftMousePressed = true;
@@ -164,16 +203,12 @@ int main() {
         }
 
         double mousePos[2];
-        VKK_GetCursorPosition(window, &mousePos[0], &mousePos[1]);
+        glfwGetCursorPos(window, &mousePos[0], &mousePos[1]);
         
         float mousePosF[2] = {
             (float)mousePos[0],
             (float)mousePos[1]
         };
-
-        int windowWidth;
-        int windowHeight;
-        VKK_GetFramebufferSize(window, &windowWidth, &windowHeight);
 
         float matrix[16];
         CreateOrthoMatrix(matrix, windowWidth, windowHeight);
@@ -185,7 +220,7 @@ int main() {
         VKK_Draw(solidTrianglePipeline, solidVertexBuffer, 3, indexBuffer, 3);
         VKK_Draw(trianglePipeline, vertexBuffer, 3, indexBuffer, 3);
 
-	    VKK_PollEvents();
+	    glfwPollEvents();
 
         VKK_Color clearColor = {
             .r = 0.0f,
@@ -193,6 +228,18 @@ int main() {
             .b = 0.0f,
             .a = 1.0f,
         };
+        
+        if (windowWidth != lastWindowWidth || windowHeight != lastWindowHeight) { 
+            lastWindowWidth = windowWidth;
+            lastWindowHeight = windowHeight;
+            resizePending = true;
+            resizeTimer = glfwGetTime();
+        }
+
+        if (resizePending && (glfwGetTime() - resizeTimer) > RESIZE_DEBOUNCE_TIME) {
+            VKK_SetFramebufferSize(windowWidth, windowHeight);
+            resizePending = false;
+        }
 
         VKK_Present(clearColor);
 
@@ -209,5 +256,7 @@ int main() {
     VKK_DestroyPipeline(solidTrianglePipeline);
 
     VKK_End();
-    VKK_TerminateWindowing();
+    
+    glfwDestroyWindow(window);
+    glfwTerminate();
 }

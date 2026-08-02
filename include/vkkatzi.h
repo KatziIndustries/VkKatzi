@@ -7,16 +7,17 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define VKK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
+
 typedef struct VKK_Buffer_T* VKK_Buffer;
 typedef struct VKK_Uniform_T* VKK_Uniform;
 typedef struct VKK_Pipeline_T* VKK_Pipeline;
+typedef struct VKK_Instance_T* VKK_Instance;
+typedef struct VKK_Surface_T* VKK_Surface;
 
 typedef struct {
     const char* vertexShaderPath; 
@@ -85,10 +86,13 @@ typedef struct {
     uint32_t imageBufferSize;
     bool enableValidationLayers;
     bool logWarnings;
+
+    const char** requiredExtensions;
+    uint32_t requiredExtensionsCount;
 } VKK_Config;
 
 typedef struct {
-    char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
+    char name[VKK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
     uint32_t apiVersion;
     uint32_t driverVersion;
     uint32_t deviceID;
@@ -111,6 +115,7 @@ typedef struct {
     uint32_t versionMajor;
     uint32_t versionMinor;
     uint32_t versionPatch;
+    VKK_Instance instance;
 } VKK_InstanceInfo;
 
 typedef enum {
@@ -137,13 +142,15 @@ typedef struct {
     float a;
 } VKK_Color;
 
-VKK_Result VKK_InitInstance(GLFWwindow* window, VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
+VKK_Result VKK_InitInstance(VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
 
 uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo* o_devices, uint32_t maxDevices);
 VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_deviceInfo);
 
 VKK_Result VKK_InitRenderer(VKK_RendererConfig rendererConfig);
 void VKK_End(void);
+
+void VKK_SetFramebufferSize(uint32_t width, uint32_t height);
 
 void VKK_Present(VKK_Color clearColor);
 
@@ -162,14 +169,7 @@ void VKK_SetPushConstantData(void* data);
 VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc);
 void VKK_DestroyPipeline(VKK_Pipeline pipeline);
 
-GLFWwindow* VKK_CreateWindow(int width, int height, char* title);
-bool VKK_WindowShouldClose(GLFWwindow* window);
-void VKK_TerminateWindowing();
-void VKK_PollEvents();
-double VKK_GetTime();
-int VKK_GetMouseButton(GLFWwindow* window, int button);
-void VKK_GetCursorPosition(GLFWwindow* window, double* x, double* y);
-void VKK_GetFramebufferSize(GLFWwindow* window, int* width, int* height);
+void VKK_SetSurface(VKK_Surface surface, uint32_t width, uint32_t height);
 
 #ifdef __cplusplus
 }
