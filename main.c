@@ -126,14 +126,16 @@ int main() {
     };
 
     VKK_PipelineDescription pipelineDescription = {
-        .shaderPaths = { .vertexShaderPath = "shader/compiled/vert.spv", .fragmentShaderPath = "shader/compiled/frag.spv" },
+        .vertexShaderPath = "shader/compiled/vert.spv",
+        .fragmentShaderPath = "shader/compiled/frag.spv",
         .attributes = attributes,
         .attributeCount = 2,
         .vertexStride = sizeof(VKK_Vertex)
     };
 
     VKK_PipelineDescription solidPipelineDescription = {
-        .shaderPaths = { .vertexShaderPath = "shader/compiled/vert.spv", .fragmentShaderPath = "shader/compiled/fragSolid.spv" },
+        .vertexShaderPath = "shader/compiled/vert.spv",
+        .fragmentShaderPath = "shader/compiled/fragSolid.spv",
         .attributes = attributes,
         .attributeCount = 2,
         .vertexStride = sizeof(VKK_Vertex)
@@ -230,4 +232,6 @@ int main() {
     VKK_DestroyPipeline(solidTrianglePipeline);
 
     VKK_End();
+
+    SDL_Quit();
 }

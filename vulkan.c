@@ -708,8 +708,8 @@ static VkFormat ConvertVertexFormat(VKK_VertexFormat format) {
 
 VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
 
-    VkShaderModule vertModule = CreateShaderModule(desc.shaderPaths.vertexShaderPath);
-    VkShaderModule fragModule = CreateShaderModule(desc.shaderPaths.fragmentShaderPath);
+    VkShaderModule vertModule = CreateShaderModule(desc.vertexShaderPath);
+    VkShaderModule fragModule = CreateShaderModule(desc.fragmentShaderPath);
 
     if (vertModule == VK_NULL_HANDLE || fragModule == VK_NULL_HANDLE) {
         return false;

@@ -19,11 +19,6 @@ typedef struct VKK_Pipeline_T* VKK_Pipeline;
 typedef struct VKK_Instance_T* VKK_Instance;
 typedef struct VKK_Surface_T* VKK_Surface;
 
-typedef struct {
-    const char* vertexShaderPath; 
-    const char* fragmentShaderPath; 
-} VKK_ShaderPaths;
-
 typedef enum {
     VKK_VERTEX_FORMAT_FLOAT2,
     VKK_VERTEX_FORMAT_FLOAT3,
@@ -37,7 +32,8 @@ typedef struct {
 } VKK_VertexAttribute;
 
 typedef struct {
-    VKK_ShaderPaths shaderPaths;
+    char* vertexShaderPath;
+    char* fragmentShaderPath;
     VKK_VertexAttribute* attributes;
     uint32_t attributeCount;
     uint32_t vertexStride;
