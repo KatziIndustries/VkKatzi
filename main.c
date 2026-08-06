@@ -9,10 +9,6 @@
 const int WINDOW_WIDTH = 640;
 const int WINDOW_HEIGHT = 480;
 
-const double RESIZE_DEBOUNCE_TIME = 0.1;
-double resizeTimer = 0.0;
-bool resizePending = false;
-
 uint32_t windowWidth;
 uint32_t windowHeight;
 
