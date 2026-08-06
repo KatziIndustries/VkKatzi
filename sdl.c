@@ -1,16 +1,16 @@
 #include "include/vkkatzi.h"
-#include "include/vkkatzi_glfw.h"
+#include "include/vkkatzi_sdl.h"
 #include "include/vkkatzi_internal.h"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 
-VKK_Result VKK_CreateSurfaceGLFW(GLFWwindow* window, VKK_Instance instance, VKK_Surface* o_surface) {
+VKK_Result VKK_CreateSurfaceSDL(SDL_Window* window, VKK_Instance instance, VKK_Surface* o_surface) {
     
     VkInstance vkInstance = _VKK_Internal_GetRawInstanceHandle(instance);
 
     VkSurfaceKHR surface;
-    glfwCreateWindowSurface(vkInstance, window, NULL, &surface);
+    SDL_Vulkan_CreateSurface(window, vkInstance, NULL, &surface);
 
     if (!surface) {
         return VKK_ERROR_SURFACE_CREATION_FAILED;

@@ -4,7 +4,7 @@
 
 #include "include/shared.h"
 #include "include/vkkatzi.h"
-#include "include/vkkatzi_glfw.h"
+#include "include/vkkatzi_sdl.h"
 
 const int WINDOW_WIDTH = 640;
 const int WINDOW_HEIGHT = 480;
@@ -15,8 +15,6 @@ bool resizePending = false;
 
 uint32_t windowWidth;
 uint32_t windowHeight;
-
-GLFWwindow* window;
 
 bool leftMousePressed;
 
@@ -56,35 +54,24 @@ static void CreateOrthoMatrix(float* o_matrix, float width, float height) {
     o_matrix[15] = 1.0f;
 }
 
-void OnWindowResize() {
-    glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
-}
-
 int main() {
 
-    if (!glfwInit()) {
-        fprintf(stderr, "Failed to initialize glfw\n");
+    if (!SDL_Init(SDL_INIT_VIDEO)){
+        fprintf(stderr, "Failed to initialize SDL: %s", SDL_GetError());
         exit(1);
     }
 
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Katzi lol", NULL, NULL);
+    SDL_Window* window = SDL_CreateWindow("Katzi lel", 800, 600, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
-    if (!window) {
-        fprintf(stderr, "Failed to create window\n");
-        glfwTerminate();
-        exit(1);
-    }
-
-    uint32_t requiredExtensionsCount;
-    const char** requiredExtensions = glfwGetRequiredInstanceExtensions(&requiredExtensionsCount);
+    uint32_t requiredExtensionsCount = 0;
+    const char* const* requiredExtensions = SDL_Vulkan_GetInstanceExtensions(&requiredExtensionsCount);
 
     VKK_Config config = {
-        .presentMode = VKK_PRESENT_MODE_FIFO_RELAXED,
+        .presentMode = VKK_PRESENT_MODE_MAILBOX,
         .imageBufferSize = 3,
         .enableValidationLayers = true,
         .logWarnings = true,
-        .requiredExtensions = requiredExtensions,
+        .requiredExtensions = (const char**)requiredExtensions,
         .requiredExtensionsCount = requiredExtensionsCount
     };
 
@@ -95,11 +82,12 @@ int main() {
     }
 
     VKK_Surface surface;
-    VKK_CreateSurfaceGLFW(window, instanceInfo.instance, &surface);
+    VKK_CreateSurfaceSDL(window, instanceInfo.instance, &surface);
 
-    uint32_t surfaceWidth;
-    uint32_t surfaceHeight;
-    glfwGetFramebufferSize(window, &surfaceHeight, &surfaceHeight);
+    int surfaceWidth;
+    int surfaceHeight;
+    SDL_GetWindowSize(window, &surfaceWidth, &surfaceHeight);
+
     VKK_SetSurface(surface, surfaceWidth, surfaceHeight);
 
     printf("[Vulkan] Version: %i.%i.%i\n", instanceInfo.versionMajor, instanceInfo.versionMinor, instanceInfo.versionPatch);
@@ -170,79 +158,69 @@ int main() {
     float elapsedTime = 0;
     float elapsedTotal = 0;
     
-    double lastFrameTime = glfwGetTime();
+    Uint64 lastFrameTime = SDL_GetPerformanceCounter();
 
     int lastWindowWidth = surfaceWidth;
     int lastWindowHeight = surfaceHeight;
 
-    glfwSetWindowSizeCallback(window, (void*)OnWindowResize);
-    
-    while (!glfwWindowShouldClose(window))
-    {
-        double currentTime = glfwGetTime();
-        double deltaTime = currentTime - lastFrameTime;
-        lastFrameTime = currentTime;
+    bool running = true;
 
+    while (running) {
+
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EVENT_QUIT) {
+                running = false;
+            }
+        }
+
+        Uint64 currentTime = SDL_GetPerformanceCounter();
+        double deltaTime = (double)(currentTime - lastFrameTime) / (double)SDL_GetPerformanceFrequency();
+        lastFrameTime = currentTime;
+    
         elapsedTime += deltaTime;
         elapsedTotal += deltaTime;
-
+    
         if (elapsedTime > 1) {
-            fprintf(stdout, "Frametime: %lf, FPS: %lf\n", deltaTime, 1.0 / deltaTime);
+            fprintf(stdout, "Frametime: %lf, FPS: %lf\n", deltaTime, 1.0f / deltaTime);
             fflush(stdout);
             elapsedTime = 0;
         }
-
-        int pressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-
-        if (pressed == 1 && !leftMousePressed) {
-            leftMousePressed = true;
-        }
-
-        if (pressed == 0) {
-            leftMousePressed = false;
-        }
-
-        double mousePos[2];
-        glfwGetCursorPos(window, &mousePos[0], &mousePos[1]);
+    
         
-        float mousePosF[2] = {
-            (float)mousePos[0],
-            (float)mousePos[1]
-        };
-
+        float mousePosF[2];
+        SDL_GetMouseState(&(mousePosF[0]), &(mousePosF[1]));
+    
         float matrix[16];
         CreateOrthoMatrix(matrix, windowWidth, windowHeight);
-
+    
         float* pushData = mergeArrays(matrix, 16, mousePosF, 2);
 
-        VKK_SetPushConstantData(pushData);
+        int windowWidth;
+        int windowHeight;
+        SDL_GetWindowSize(window, &windowWidth, &windowHeight);
 
+        if (windowWidth != lastWindowWidth || windowHeight != lastWindowHeight) {
+            VKK_SetFramebufferSize(windowWidth, windowHeight);
+
+            lastWindowWidth = windowWidth;
+            lastWindowHeight = windowHeight;
+        }
+    
+        VKK_SetPushConstantData(pushData);
+    
         VKK_Draw(solidTrianglePipeline, solidVertexBuffer, 3, indexBuffer, 3);
         VKK_Draw(trianglePipeline, vertexBuffer, 3, indexBuffer, 3);
-
-	    glfwPollEvents();
-
+    
         VKK_Color clearColor = {
             .r = 0.0f,
             .g = 0.0f,
             .b = 0.0f,
             .a = 1.0f,
         };
-        
-        if (windowWidth != lastWindowWidth || windowHeight != lastWindowHeight) { 
-            lastWindowWidth = windowWidth;
-            lastWindowHeight = windowHeight;
-            resizePending = true;
-            resizeTimer = glfwGetTime();
-        }
-
-        if (resizePending && (glfwGetTime() - resizeTimer) > RESIZE_DEBOUNCE_TIME) {
-            VKK_SetFramebufferSize(windowWidth, windowHeight);
-            resizePending = false;
-        }
-
+    
         VKK_Present(clearColor);
-
+    
         free(pushData);
     }
 
@@ -256,7 +234,4 @@ int main() {
     VKK_DestroyPipeline(solidTrianglePipeline);
 
     VKK_End();
-    
-    glfwDestroyWindow(window);
-    glfwTerminate();
 }
