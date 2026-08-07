@@ -18,6 +18,7 @@ typedef struct VKK_Uniform_T* VKK_Uniform;
 typedef struct VKK_Pipeline_T* VKK_Pipeline;
 typedef struct VKK_Instance_T* VKK_Instance;
 typedef struct VKK_Surface_T* VKK_Surface;
+typedef struct VKK_Texture_T* VKK_Texture;
 
 typedef enum {
     VKK_VERTEX_FORMAT_FLOAT2,
@@ -164,6 +165,12 @@ void VKK_SetPushConstantData(void* data);
 
 VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc);
 void VKK_DestroyPipeline(VKK_Pipeline pipeline);
+
+VKK_Texture VKK_CreateTexture(const char* path);
+VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height);
+void VKK_DestroyTexture(VKK_Texture texture);
+
+void VKK_BindTexture(uint32_t binding, VKK_Texture texture);
 
 void VKK_SetSurface(VKK_Surface surface, uint32_t width, uint32_t height);
 

@@ -1,6 +1,6 @@
 #version 450
 
-layout(location = 0) in vec4 fragColor;
+layout(location = 0) in vec2 fragUV;
 
 layout(push_constant) uniform PushConstants {
     mat4 ortho;
@@ -9,9 +9,8 @@ layout(push_constant) uniform PushConstants {
 
 layout(location = 0) out vec4 outColor;
 
-void main() {
-    float dist = distance(gl_FragCoord.xy, pc.mousePosition) / 300;
-    float inverseDist = 1 - dist;
+layout(binding = 32) uniform sampler2D texSampler;
 
-    outColor = vec4(fragColor.xyz, inverseDist);
+void main() {
+    outColor = texture(texSampler, fragUV);
 }

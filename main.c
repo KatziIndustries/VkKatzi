@@ -14,10 +14,17 @@ uint32_t windowHeight;
 
 bool leftMousePressed;
 
-static const VKK_Vertex verticesLeft[] = {
-    {{0.5f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-    {{1.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-    {{0.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}},
+
+typedef struct {
+    float position[2];
+    float uv[2];
+} TexturedVertex;
+
+static const TexturedVertex verticesLeft[] = {
+    {{-1.0f, -1.0f}, {0.0f, 0.0f}},
+    {{1.0f, -1.0f}, {1.0f, 0.0f}},
+    {{1.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-1.0f, 1.0f}, {0.0f, 1.0f}},
 };
 
 static const VKK_Vertex verticesRight[] = {
@@ -27,7 +34,8 @@ static const VKK_Vertex verticesRight[] = {
 };
 
 static const uint16_t indices[] = {
-    0, 1, 2, 
+    0, 1, 2,
+    0, 2, 3
 };
 
 float* mergeArrays(float arr1[], int n1, float arr2[], int n2) {
@@ -73,7 +81,7 @@ int main() {
     VKK_Config config = {
         .presentMode = VKK_PRESENT_MODE_MAILBOX,
         .imageBufferSize = 3,
-        .enableValidationLayers = true,
+        .enableValidationLayers = false,
         .logWarnings = true,
         .requiredExtensions = (const char**)requiredExtensions,
         .requiredExtensionsCount = requiredExtensionsCount
@@ -128,9 +136,12 @@ int main() {
         exit(1);
     }
 
+    VKK_Texture texture = VKK_CreateTexture("textures/katzi!.png");
+    VKK_BindTexture(32, texture);
+
     VKK_VertexAttribute attributes[] = {
-        { .location = 0, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(VKK_Vertex, position)},
-        { .location = 1, .format = VKK_VERTEX_FORMAT_FLOAT4, .offset = offsetof(VKK_Vertex, color)},
+        { .location = 0, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, position)},
+        { .location = 1, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, uv)},
     };
 
     VKK_PipelineDescription pipelineDescription = {
@@ -138,7 +149,7 @@ int main() {
         .fragmentShaderPath = "shader/compiled/frag.spv",
         .attributes = attributes,
         .attributeCount = 2,
-        .vertexStride = sizeof(VKK_Vertex)
+        .vertexStride = sizeof(TexturedVertex)
     };
 
     VKK_PipelineDescription solidPipelineDescription = {
@@ -150,16 +161,16 @@ int main() {
     };
 
     VKK_Pipeline trianglePipeline = VKK_CreatePipeline(pipelineDescription);
-    VKK_Pipeline solidTrianglePipeline = VKK_CreatePipeline(solidPipelineDescription);
+    //VKK_Pipeline solidTrianglePipeline = VKK_CreatePipeline(solidPipelineDescription);
 
-    VKK_Buffer vertexBuffer = VKK_CreateBuffer(sizeof(VKK_Vertex) * 3, VKK_BUFFER_USAGE_VERTEX);
-    VKK_WriteBuffer(vertexBuffer, verticesLeft, sizeof(VKK_Vertex) * 3, 0);
+    VKK_Buffer vertexBuffer = VKK_CreateBuffer(sizeof(TexturedVertex) * 4, VKK_BUFFER_USAGE_VERTEX);
+    VKK_WriteBuffer(vertexBuffer, verticesLeft, sizeof(TexturedVertex) * 4, 0);
 
     VKK_Buffer solidVertexBuffer = VKK_CreateBuffer(sizeof(VKK_Vertex) * 3, VKK_BUFFER_USAGE_VERTEX);
     VKK_WriteBuffer(solidVertexBuffer, verticesRight, sizeof(VKK_Vertex) * 3, 0);
 
-    VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint16_t) * 3, VKK_BUFFER_USAGE_INDEX);
-    VKK_WriteBuffer(indexBuffer, indices, sizeof(uint16_t) * 3, 0);
+    VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint16_t) * 6, VKK_BUFFER_USAGE_INDEX);
+    VKK_WriteBuffer(indexBuffer, indices, sizeof(uint16_t) * 6, 0);
 
     float elapsedTime = 0;
     float elapsedTotal = 0;
@@ -212,11 +223,11 @@ int main() {
             lastWindowWidth = windowWidth;
             lastWindowHeight = windowHeight;
         }
-    
+        
         VKK_SetPushConstantData(pushData);
     
         //VKK_Draw(solidTrianglePipeline, solidVertexBuffer, 3, indexBuffer, 3);
-        //VKK_Draw(trianglePipeline, vertexBuffer, 3, indexBuffer, 3);
+        VKK_Draw(trianglePipeline, vertexBuffer, 4, indexBuffer, 6);
     
         VKK_Color clearColor = {
             .r = 0.0f,
@@ -237,7 +248,9 @@ int main() {
     VKK_DestroyUniform(timeUniform);
     
     VKK_DestroyPipeline(trianglePipeline);
-    VKK_DestroyPipeline(solidTrianglePipeline);
+    //VKK_DestroyPipeline(solidTrianglePipeline);
+
+    VKK_DestroyTexture(texture);
 
     VKK_End();
 
