@@ -58,7 +58,7 @@ typedef struct {
 #define MAX_FRAMES_IN_FLIGHT 2
 #define MAX_DRAW_CALLS 1024
 #define MAX_UNIFORMS 32
-#define MAX_TEXTURES 32
+#define MAX_TEXTURES 64
 
 typedef struct  {
     VkInstance instance;
@@ -148,6 +148,7 @@ struct VKK_Texture_T {
     VkImageView imageView;
     VkSampler sampler;
     uint32_t width, height;
+    uint32_t binding;
 };
 
 static VkContext vkContext;
@@ -1064,7 +1065,7 @@ static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
 
 static bool CreateDescriptorSetLayout() {
 
-    VkDescriptorSetLayoutBinding bindings[MAX_UNIFORMS];
+    VkDescriptorSetLayoutBinding bindings[vkContext.uniformCount];
 
     for (uint32_t i = 0; i < vkContext.uniformCount; i++) {
         bindings[i] = (VkDescriptorSetLayoutBinding){
@@ -1075,18 +1076,16 @@ static bool CreateDescriptorSetLayout() {
         };
     }
 
-    const VkDescriptorSetLayoutBinding samplerLayoutBinding = {
-        .binding = 32,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-    };
-
-    bindings[vkContext.uniformCount] = samplerLayoutBinding;
+    //bindings[i + vkContext.uniformCount] = (VkDescriptorSetLayoutBinding){
+    //    .binding = vkContext.textures[i]->binding,
+    //    .descriptorCount = 1,
+    //    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+    //    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+    //};
 
     const VkDescriptorSetLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = vkContext.uniformCount + 1,
+        .bindingCount = vkContext.uniformCount,
         .pBindings = bindings
     };
 
@@ -1114,6 +1113,8 @@ void VKK_BindTexture(uint32_t binding, VKK_Texture texture) {
         .descriptorCount = 1,
         .pImageInfo = &imageInfo
     };
+
+    texture->binding = binding;
 
     vkUpdateDescriptorSets(vkContext.logicalDevice, 1, &descriptorWrite, 0, NULL);
 }
@@ -1496,22 +1497,23 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
     VKK_Buffer stagingBuffer = VKK_CreateBuffer(imageSize, VKK_BUFFER_USAGE_STAGING);
     VKK_WriteBuffer(stagingBuffer, pixels, imageSize, 0);
 
+    
     VKK_Texture texture = malloc(sizeof(struct VKK_Texture_T));
     texture->width = width;
     texture->height = height;
-
+    
     if (!CreateImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, &texture->image, &texture->memory)) {
         free(texture);
         VKK_DestroyBuffer(stagingBuffer);
         return NULL;
     }
-
+    
     TransitionImageLayout(texture->image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
+    
     CopyBufferToImage(stagingBuffer->handle, texture->image, width, height);
-
+    
     TransitionImageLayout(texture->image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
+    
     VKK_DestroyBuffer(stagingBuffer);
 
     const VkImageViewCreateInfo viewInfo = {
@@ -1562,11 +1564,12 @@ VKK_Texture VKK_CreateTexture(const char* path) {
 
     stbi_uc* pixels = stbi_load(path, &width, &height, &channels, STBI_rgb_alpha);
 
+    
     if (!pixels) {
         fprintf(stderr, "[VKK][ERROR]: Failed to load image '%s'", path);
         return NULL;
     }
-
+    
     VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height);
 
     stbi_image_free(pixels);

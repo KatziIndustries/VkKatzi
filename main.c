@@ -81,7 +81,7 @@ int main() {
     VKK_Config config = {
         .presentMode = VKK_PRESENT_MODE_MAILBOX,
         .imageBufferSize = 3,
-        .enableValidationLayers = false,
+        .enableValidationLayers = true,
         .logWarnings = true,
         .requiredExtensions = (const char**)requiredExtensions,
         .requiredExtensionsCount = requiredExtensionsCount
@@ -131,13 +131,13 @@ int main() {
         .pushConstantRange = pushConstantRange,   
     };
 
+
     if (VKK_InitRenderer(renderConfig) != VKK_SUCCESS) {
         fprintf(stderr, "Failed to initialize pipeline\n");
         exit(1);
     }
 
     VKK_Texture texture = VKK_CreateTexture("textures/katzi!.png");
-    VKK_BindTexture(32, texture);
 
     VKK_VertexAttribute attributes[] = {
         { .location = 0, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, position)},
