@@ -52,6 +52,14 @@ static void CreateOrthoMatrix(float* o_matrix, float width, float height) {
 
 int main() {
 
+#ifdef RAPHI
+    if (Programm.start) {
+        Programm = gut;
+    } else {
+        Programm = schlecht;
+    }
+#endif
+
     if (!SDL_Init(SDL_INIT_VIDEO)){
         fprintf(stderr, "Failed to initialize SDL: %s", SDL_GetError());
         exit(1);
@@ -207,8 +215,8 @@ int main() {
     
         VKK_SetPushConstantData(pushData);
     
-        VKK_Draw(solidTrianglePipeline, solidVertexBuffer, 3, indexBuffer, 3);
-        VKK_Draw(trianglePipeline, vertexBuffer, 3, indexBuffer, 3);
+        //VKK_Draw(solidTrianglePipeline, solidVertexBuffer, 3, indexBuffer, 3);
+        //VKK_Draw(trianglePipeline, vertexBuffer, 3, indexBuffer, 3);
     
         VKK_Color clearColor = {
             .r = 0.0f,
