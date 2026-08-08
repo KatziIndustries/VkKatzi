@@ -14,6 +14,7 @@ uint32_t windowHeight;
 
 bool leftMousePressed;
 
+int boundTexture = 0;
 
 typedef struct {
     float position[2];
@@ -144,6 +145,7 @@ int main() {
     }
     
     VKK_Texture texture = VKK_CreateTexture("textures/katzi!.png");
+    VKK_Texture texture2 = VKK_CreateTexture("textures/KatizJa.png");
     VKK_BindTexture(0, texture);
 
     VKK_Uniform timeUniform = VKK_CreateUniform(sizeof(float), VKK_SHADER_STAGE_VERTEX);
@@ -198,6 +200,16 @@ int main() {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
                 running = false;
+            }
+
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+                boundTexture = (boundTexture + 1) % 2;
+
+                if (boundTexture == 0) {
+                    VKK_BindTexture(0, texture);
+                } else {
+                    VKK_BindTexture(0, texture2);
+                }
             }
         }
 
