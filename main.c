@@ -81,7 +81,7 @@ int main() {
     VKK_Config config = {
         .presentMode = VKK_PRESENT_MODE_MAILBOX,
         .imageBufferSize = 3,
-        .enableValidationLayers = true,
+        .enableValidationLayers = false,
         .logWarnings = true,
         .requiredExtensions = (const char**)requiredExtensions,
         .requiredExtensionsCount = requiredExtensionsCount
@@ -118,27 +118,37 @@ int main() {
     }
 
     fprintf(stdout, "[Selected Device]: Name: %s, Device Id: %i, Device Type: %i\n", deviceInfo.name, deviceInfo.deviceID, deviceInfo.deviceType);
-
-    VKK_Uniform timeUniform = VKK_CreateUniform(0, sizeof(float), VKK_SHADER_STAGE_VERTEX);
-
+    
     VKK_PushConstantRange pushConstantRange = {
         .shaderStage = VKK_SHADER_STAGE_ALL,
         .offset = 0,
         .size = sizeof(float) * 18
     };
-
+    
     VKK_RendererConfig renderConfig = {
         .pushConstantRange = pushConstantRange,   
     };
 
+    VKK_DescriptorSetLayoutBinding bindings[] = {
+        { .binding = 0, .descriptorType = VKK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .shaderStage = VKK_SHADER_STAGE_FRAGMENT },
+        { .binding = 1, .descriptorType = VKK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .shaderStage = VKK_SHADER_STAGE_ALL },
+    };
+    if (VKK_CreateDescriptorSetLayout(bindings, 2) != VKK_SUCCESS) {
+        fprintf(stderr, "Failed to create descriptor set layout");
+        exit(1);
+    }
 
     if (VKK_InitRenderer(renderConfig) != VKK_SUCCESS) {
         fprintf(stderr, "Failed to initialize pipeline\n");
         exit(1);
     }
-
+    
     VKK_Texture texture = VKK_CreateTexture("textures/katzi!.png");
+    VKK_BindTexture(0, texture);
 
+    VKK_Uniform timeUniform = VKK_CreateUniform(sizeof(float), VKK_SHADER_STAGE_VERTEX);
+    VKK_BindUniform(1, timeUniform);
+    
     VKK_VertexAttribute attributes[] = {
         { .location = 0, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, position)},
         { .location = 1, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, uv)},
@@ -225,7 +235,9 @@ int main() {
         }
         
         VKK_SetPushConstantData(pushData);
-    
+
+        VKK_WriteUniform(timeUniform, &elapsedTime, sizeof(float), 0);
+
         //VKK_Draw(solidTrianglePipeline, solidVertexBuffer, 3, indexBuffer, 3);
         VKK_Draw(trianglePipeline, vertexBuffer, 4, indexBuffer, 6);
     
@@ -245,8 +257,6 @@ int main() {
     VKK_DestroyBuffer(solidVertexBuffer);
     VKK_DestroyBuffer(indexBuffer);
 
-    VKK_DestroyUniform(timeUniform);
-    
     VKK_DestroyPipeline(trianglePipeline);
     //VKK_DestroyPipeline(solidTrianglePipeline);
 

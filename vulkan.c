@@ -107,8 +107,6 @@ typedef struct  {
     PendingDeletion pendingDeletions[MAX_PENDING_DELETIONS];
     uint32_t pendingDeletionCount;
 
-    VKK_Uniform uniforms[MAX_UNIFORMS];
-    uint32_t uniformCount;
     bool pipelineFinalized;
 
     VKK_PushConstantRange pushConstantRange;
@@ -125,7 +123,6 @@ struct VKK_Buffer_T {
 
 struct VKK_Uniform_T {
     VKK_Buffer buffer;
-    uint32_t binding;
     VkShaderStageFlags stageFlags;
 };
 
@@ -671,21 +668,15 @@ static VkShaderStageFlags ConvertShaderStage(VKK_ShaderStage shaderStage) {
     return VK_SHADER_STAGE_VERTEX_BIT;
 }
 
-VKK_Uniform VKK_CreateUniform(uint32_t binding, size_t size, VKK_ShaderStage stage) { 
+VKK_Uniform VKK_CreateUniform(size_t size, VKK_ShaderStage stage) { 
 
-    if (vkContext.pipelineFinalized) {
-        fprintf(stderr, "[VKK][ERROR]: VKK_CreateUniform: Uniforms must be created before VKK_InitPipeline finishes\n");
-        return NULL;
-    }
-
-    if (vkContext.uniformCount >= MAX_UNIFORMS) {
-        fprintf(stderr, "[VKK][ERROR]: Max uniforms (%d) exceeded\n", MAX_UNIFORMS);
-        return NULL;
-    }
+    //if (vkContext.pipelineFinalized) {
+    //    fprintf(stderr, "[VKK][ERROR]: VKK_CreateUniform: Uniforms must be created before VKK_InitPipeline finishes\n");
+    //    return NULL;
+    //}
 
     VKK_Uniform uniform = malloc(sizeof(struct VKK_Uniform_T));
     uniform->buffer = VKK_CreateBuffer(size, VKK_BUFFER_USAGE_UNIFORM);
-    uniform->binding = binding;
     uniform->stageFlags = ConvertShaderStage(stage);
 
     if (!uniform->buffer) {
@@ -693,8 +684,50 @@ VKK_Uniform VKK_CreateUniform(uint32_t binding, size_t size, VKK_ShaderStage sta
         return NULL;
     }
 
-    vkContext.uniforms[vkContext.uniformCount++] = uniform;
     return uniform;
+}
+
+void VKK_BindUniform(uint32_t binding, VKK_Uniform uniform) {
+
+    const VkDescriptorBufferInfo bufferInfo = {
+        .buffer = uniform->buffer->handle,
+        .offset = 0,
+        .range = uniform->buffer->size
+    };
+
+    const VkWriteDescriptorSet descriptorWrite = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = vkContext.descriptorSet,
+        .dstBinding = binding,
+        .dstArrayElement = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .pBufferInfo = &bufferInfo
+    };
+
+
+    //VkDescriptorBufferInfo bufferInfos[MAX_UNIFORMS];
+    //VkWriteDescriptorSet writes[MAX_UNIFORMS];
+
+    //for (uint32_t i = 0; i < vkContext.uniformCount; i++) {
+    //    bufferInfos[i] = (VkDescriptorBufferInfo){
+    //        .buffer = vkContext.uniforms[i]->buffer->handle,
+    //        .offset = 0,
+    //        .range = vkContext.uniforms[i]->buffer->size
+    //    };
+
+    //    writes[i] = (VkWriteDescriptorSet){
+    //        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //        .dstSet = vkContext.descriptorSet,
+    //        .dstBinding = vkContext.uniforms[i]->binding,
+    //        .dstArrayElement = 0,
+    //        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //        .descriptorCount = 1,
+    //        .pBufferInfo = &bufferInfos[i]
+    //    };
+    //}
+
+    vkUpdateDescriptorSets(vkContext.logicalDevice, 1, &descriptorWrite, 0, NULL);
 }
 
 void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t offset) {
@@ -1063,38 +1096,64 @@ static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
     return true;
 }
 
-static bool CreateDescriptorSetLayout() {
+VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* bindings, uint32_t bindingsCount) {
 
-    VkDescriptorSetLayoutBinding bindings[vkContext.uniformCount];
+    VkDescriptorSetLayoutBinding vkBindings[bindingsCount];
 
-    for (uint32_t i = 0; i < vkContext.uniformCount; i++) {
-        bindings[i] = (VkDescriptorSetLayoutBinding){
-            .binding = vkContext.uniforms[i]->binding,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    for (uint32_t i = 0; i < bindingsCount; i++) {
+        vkBindings[i] = (VkDescriptorSetLayoutBinding){
+            .binding = bindings[i].binding,
+            .descriptorType = (VkDescriptorType)bindings[i].descriptorType,
             .descriptorCount = 1,
-            .stageFlags = vkContext.uniforms[i]->stageFlags
+            .stageFlags = ConvertShaderStage(bindings[i].shaderStage)
         };
     }
 
-    //bindings[i + vkContext.uniformCount] = (VkDescriptorSetLayoutBinding){
-    //    .binding = vkContext.textures[i]->binding,
-    //    .descriptorCount = 1,
-    //    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    //    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-    //};
-
     const VkDescriptorSetLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = vkContext.uniformCount,
-        .pBindings = bindings
+        .bindingCount = bindingsCount,
+        .pBindings = vkBindings
     };
 
     if (vkCreateDescriptorSetLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.descriptorSetLayout) != VK_SUCCESS) {
-        return false;
+        return VKK_ERROR_DESCRIPTOR_SET_LAYOUT_CREATION_FAILED;
     }
 
-    return true;
+    return VKK_SUCCESS;
 }
+
+//static bool CreateDescriptorSetLayout() {
+//
+//    VkDescriptorSetLayoutBinding bindings[vkContext.uniformCount];
+//
+//    for (uint32_t i = 0; i < vkContext.uniformCount; i++) {
+//        bindings[i] = (VkDescriptorSetLayoutBinding){
+//            .binding = vkContext.uniforms[i]->binding,
+//            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+//            .descriptorCount = 1,
+//            .stageFlags = vkContext.uniforms[i]->stageFlags
+//        };
+//    }
+//
+//    //bindings[i + vkContext.uniformCount] = (VkDescriptorSetLayoutBinding){
+//    //    .binding = vkContext.textures[i]->binding,
+//    //    .descriptorCount = 1,
+//    //    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+//    //    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+//    //};
+//
+//    const VkDescriptorSetLayoutCreateInfo layoutInfo = {
+//        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+//        .bindingCount = vkContext.uniformCount,
+//        .pBindings = bindings
+//    };
+//
+//    if (vkCreateDescriptorSetLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.descriptorSetLayout) != VK_SUCCESS) {
+//        return false;
+//    }
+//
+//    return true;
+//}
 
 void VKK_BindTexture(uint32_t binding, VKK_Texture texture) {
 
@@ -1178,7 +1237,7 @@ VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage) {
 static bool CreateDescriptorPoolAndSet(uint32_t maxSets) {
 
     const VkDescriptorPoolSize poolSizes[] = {
-        { .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = vkContext.uniformCount },
+        { .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = MAX_UNIFORMS },
         { .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = MAX_TEXTURES },
     };
 
@@ -1203,29 +1262,6 @@ static bool CreateDescriptorPoolAndSet(uint32_t maxSets) {
     if (vkAllocateDescriptorSets(vkContext.logicalDevice, &allocateInfo, &vkContext.descriptorSet) != VK_SUCCESS) {
         return false;
     }
-
-    VkDescriptorBufferInfo bufferInfos[MAX_UNIFORMS];
-    VkWriteDescriptorSet writes[MAX_UNIFORMS];
-
-    for (uint32_t i = 0; i < vkContext.uniformCount; i++) {
-        bufferInfos[i] = (VkDescriptorBufferInfo){
-            .buffer = vkContext.uniforms[i]->buffer->handle,
-            .offset = 0,
-            .range = vkContext.uniforms[i]->buffer->size
-        };
-
-        writes[i] = (VkWriteDescriptorSet){
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = vkContext.descriptorSet,
-            .dstBinding = vkContext.uniforms[i]->binding,
-            .dstArrayElement = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .pBufferInfo = &bufferInfos[i]
-        };
-    }
-
-    vkUpdateDescriptorSets(vkContext.logicalDevice, vkContext.uniformCount, writes, 0, NULL);
 
     return true;
 }
@@ -1563,7 +1599,6 @@ VKK_Texture VKK_CreateTexture(const char* path) {
     int width, height, channels;
 
     stbi_uc* pixels = stbi_load(path, &width, &height, &channels, STBI_rgb_alpha);
-
     
     if (!pixels) {
         fprintf(stderr, "[VKK][ERROR]: Failed to load image '%s'", path);
@@ -1681,9 +1716,9 @@ VKK_Result VKK_InitRenderer(VKK_RendererConfig rendererConfig) {
 
     uint32_t maxSets = rendererConfig.maxDescriptorSets > 0 ? rendererConfig.maxDescriptorSets : 16;
 
-    if (!CreateDescriptorSetLayout()) {
-        return VKK_ERROR_DESCRIPTOR_SET_LAYOUT_CREATION_FAILED;
-    }
+    //if (!CreateDescriptorSetLayout()) {
+    //    return VKK_ERROR_DESCRIPTOR_SET_LAYOUT_CREATION_FAILED;
+    //}
 
     vkContext.pipelineFinalized = true;
 

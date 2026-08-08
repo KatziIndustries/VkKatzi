@@ -139,6 +139,17 @@ typedef struct {
     float a;
 } VKK_Color;
 
+typedef enum {
+    VKK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER = 1,
+    VKK_DESCRIPTOR_TYPE_UNIFORM_BUFFER = 6,
+} VKK_DescriptorType;
+
+typedef struct {
+    uint32_t binding;
+    VKK_DescriptorType descriptorType;
+    VKK_ShaderStage shaderStage; 
+} VKK_DescriptorSetLayoutBinding;
+
 VKK_Result VKK_InitInstance(VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
 
 uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo* o_devices, uint32_t maxDevices);
@@ -155,7 +166,8 @@ VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage);
 void VKK_DestroyBuffer(VKK_Buffer buffer);
 void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t offset);
 
-VKK_Uniform VKK_CreateUniform(uint32_t binding, size_t size, VKK_ShaderStage shaderStage);
+VKK_Uniform VKK_CreateUniform(size_t size, VKK_ShaderStage shaderStage);
+void VKK_BindUniform(uint32_t binding, VKK_Uniform uniform);
 void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t offset);
 void VKK_DestroyUniform(VKK_Uniform uniform);
 
@@ -169,6 +181,8 @@ void VKK_DestroyPipeline(VKK_Pipeline pipeline);
 VKK_Texture VKK_CreateTexture(const char* path);
 VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height);
 void VKK_DestroyTexture(VKK_Texture texture);
+
+VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* bindings, uint32_t bindingsCount);
 
 void VKK_BindTexture(uint32_t binding, VKK_Texture texture);
 
