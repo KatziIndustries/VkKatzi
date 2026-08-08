@@ -145,7 +145,6 @@ struct VKK_Texture_T {
     VkImageView imageView;
     VkSampler sampler;
     uint32_t width, height;
-    uint32_t binding;
 };
 
 static VkContext vkContext;
@@ -670,11 +669,6 @@ static VkShaderStageFlags ConvertShaderStage(VKK_ShaderStage shaderStage) {
 
 VKK_Uniform VKK_CreateUniform(size_t size, VKK_ShaderStage stage) { 
 
-    //if (vkContext.pipelineFinalized) {
-    //    fprintf(stderr, "[VKK][ERROR]: VKK_CreateUniform: Uniforms must be created before VKK_InitPipeline finishes\n");
-    //    return NULL;
-    //}
-
     VKK_Uniform uniform = malloc(sizeof(struct VKK_Uniform_T));
     uniform->buffer = VKK_CreateBuffer(size, VKK_BUFFER_USAGE_UNIFORM);
     uniform->stageFlags = ConvertShaderStage(stage);
@@ -689,6 +683,11 @@ VKK_Uniform VKK_CreateUniform(size_t size, VKK_ShaderStage stage) {
 
 void VKK_BindUniform(uint32_t binding, VKK_Uniform uniform) {
 
+    if (!vkContext.descriptorSet) {
+        LogError("VKK_InitRenderer has to be called before calling VKK_BindUniform");
+        return;
+    }
+    
     const VkDescriptorBufferInfo bufferInfo = {
         .buffer = uniform->buffer->handle,
         .offset = 0,
@@ -704,28 +703,6 @@ void VKK_BindUniform(uint32_t binding, VKK_Uniform uniform) {
         .descriptorCount = 1,
         .pBufferInfo = &bufferInfo
     };
-
-
-    //VkDescriptorBufferInfo bufferInfos[MAX_UNIFORMS];
-    //VkWriteDescriptorSet writes[MAX_UNIFORMS];
-
-    //for (uint32_t i = 0; i < vkContext.uniformCount; i++) {
-    //    bufferInfos[i] = (VkDescriptorBufferInfo){
-    //        .buffer = vkContext.uniforms[i]->buffer->handle,
-    //        .offset = 0,
-    //        .range = vkContext.uniforms[i]->buffer->size
-    //    };
-
-    //    writes[i] = (VkWriteDescriptorSet){
-    //        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-    //        .dstSet = vkContext.descriptorSet,
-    //        .dstBinding = vkContext.uniforms[i]->binding,
-    //        .dstArrayElement = 0,
-    //        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    //        .descriptorCount = 1,
-    //        .pBufferInfo = &bufferInfos[i]
-    //    };
-    //}
 
     vkUpdateDescriptorSets(vkContext.logicalDevice, 1, &descriptorWrite, 0, NULL);
 }
@@ -1122,39 +1099,6 @@ VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* binding
     return VKK_SUCCESS;
 }
 
-//static bool CreateDescriptorSetLayout() {
-//
-//    VkDescriptorSetLayoutBinding bindings[vkContext.uniformCount];
-//
-//    for (uint32_t i = 0; i < vkContext.uniformCount; i++) {
-//        bindings[i] = (VkDescriptorSetLayoutBinding){
-//            .binding = vkContext.uniforms[i]->binding,
-//            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-//            .descriptorCount = 1,
-//            .stageFlags = vkContext.uniforms[i]->stageFlags
-//        };
-//    }
-//
-//    //bindings[i + vkContext.uniformCount] = (VkDescriptorSetLayoutBinding){
-//    //    .binding = vkContext.textures[i]->binding,
-//    //    .descriptorCount = 1,
-//    //    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-//    //    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-//    //};
-//
-//    const VkDescriptorSetLayoutCreateInfo layoutInfo = {
-//        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-//        .bindingCount = vkContext.uniformCount,
-//        .pBindings = bindings
-//    };
-//
-//    if (vkCreateDescriptorSetLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.descriptorSetLayout) != VK_SUCCESS) {
-//        return false;
-//    }
-//
-//    return true;
-//}
-
 void VKK_BindTexture(uint32_t binding, VKK_Texture texture) {
 
     const VkDescriptorImageInfo imageInfo = {
@@ -1172,8 +1116,6 @@ void VKK_BindTexture(uint32_t binding, VKK_Texture texture) {
         .descriptorCount = 1,
         .pImageInfo = &imageInfo
     };
-
-    texture->binding = binding;
 
     vkUpdateDescriptorSets(vkContext.logicalDevice, 1, &descriptorWrite, 0, NULL);
 }
@@ -1528,6 +1470,12 @@ static void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, ui
 }
 
 VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height) {
+
+    if (!vkContext.commandPool) {
+        LogError("VKK_InitRenderer has to be called before creating a Texture");
+        return NULL;
+    }
+
     VkDeviceSize imageSize = (VkDeviceSize)width * height * 4;
 
     VKK_Buffer stagingBuffer = VKK_CreateBuffer(imageSize, VKK_BUFFER_USAGE_STAGING);
@@ -1716,9 +1664,10 @@ VKK_Result VKK_InitRenderer(VKK_RendererConfig rendererConfig) {
 
     uint32_t maxSets = rendererConfig.maxDescriptorSets > 0 ? rendererConfig.maxDescriptorSets : 16;
 
-    //if (!CreateDescriptorSetLayout()) {
-    //    return VKK_ERROR_DESCRIPTOR_SET_LAYOUT_CREATION_FAILED;
-    //}
+    if (!vkContext.descriptorSetLayout) {
+        LogError("VKK_CreateDescriptorSetLayout has to be called before calling VKK_InitRenderer");
+        return VKK_ERROR_WRONG_EXECUTION_ORDER;
+    }
 
     vkContext.pipelineFinalized = true;
 

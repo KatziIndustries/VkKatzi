@@ -82,7 +82,7 @@ int main() {
     VKK_Config config = {
         .presentMode = VKK_PRESENT_MODE_MAILBOX,
         .imageBufferSize = 3,
-        .enableValidationLayers = false,
+        .enableValidationLayers = true,
         .logWarnings = true,
         .requiredExtensions = (const char**)requiredExtensions,
         .requiredExtensionsCount = requiredExtensionsCount
@@ -134,6 +134,7 @@ int main() {
         { .binding = 0, .descriptorType = VKK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .shaderStage = VKK_SHADER_STAGE_FRAGMENT },
         { .binding = 1, .descriptorType = VKK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .shaderStage = VKK_SHADER_STAGE_ALL },
     };
+
     if (VKK_CreateDescriptorSetLayout(bindings, 2) != VKK_SUCCESS) {
         fprintf(stderr, "Failed to create descriptor set layout");
         exit(1);
@@ -143,13 +144,13 @@ int main() {
         fprintf(stderr, "Failed to initialize pipeline\n");
         exit(1);
     }
-    
-    VKK_Texture texture = VKK_CreateTexture("textures/katzi!.png");
-    VKK_Texture texture2 = VKK_CreateTexture("textures/KatizJa.png");
-    VKK_BindTexture(0, texture);
 
     VKK_Uniform timeUniform = VKK_CreateUniform(sizeof(float), VKK_SHADER_STAGE_VERTEX);
     VKK_BindUniform(1, timeUniform);
+
+    VKK_Texture texture = VKK_CreateTexture("textures/katzi!.png");
+    VKK_Texture texture2 = VKK_CreateTexture("textures/KatizJa.png");
+    VKK_BindTexture(0, texture);
     
     VKK_VertexAttribute attributes[] = {
         { .location = 0, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, position)},
@@ -273,6 +274,9 @@ int main() {
     //VKK_DestroyPipeline(solidTrianglePipeline);
 
     VKK_DestroyTexture(texture);
+    VKK_DestroyTexture(texture2);
+
+    VKK_DestroyUniform(timeUniform);
 
     VKK_End();
 
