@@ -46,7 +46,6 @@ typedef struct {
     uint32_t framesUntilDeletion;
 } PendingDeletion;
 
-
 typedef struct {
     VkBuffer vertexBuffer;
     uint32_t vertexCount;
@@ -636,6 +635,7 @@ void VKK_DestroyUniform(VKK_Uniform uniform) {
 }
 
 void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t offset) {
+
     if (!buffer) {
         LogError("VKK_WriteBuffer: buffer is NULL");
         return;
@@ -982,7 +982,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
 
             VkDeviceSize offset = 0;
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, &drawCall->vertexBuffer, &offset);
-            vkCmdBindIndexBuffer(commandBuffer, drawCall->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdBindIndexBuffer(commandBuffer, drawCall->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCall->pipeline->layout, 0, 1, &vkContext.descriptorSet, 0, NULL);
         
