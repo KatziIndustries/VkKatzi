@@ -34,7 +34,7 @@ static const VKK_Vertex verticesRight[] = {
     {{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}},
 };
 
-static const uint16_t indices[] = {
+static const uint32_t indices[] = {
     0, 1, 2,
     0, 2, 3
 };
@@ -182,8 +182,8 @@ int main() {
     VKK_Buffer solidVertexBuffer = VKK_CreateBuffer(sizeof(VKK_Vertex) * 3, VKK_BUFFER_USAGE_VERTEX);
     VKK_WriteBuffer(solidVertexBuffer, verticesRight, sizeof(VKK_Vertex) * 3, 0);
 
-    VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint16_t) * 6, VKK_BUFFER_USAGE_INDEX);
-    VKK_WriteBuffer(indexBuffer, indices, sizeof(uint16_t) * 6, 0);
+    VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint32_t) * 6, VKK_BUFFER_USAGE_INDEX);
+    VKK_WriteBuffer(indexBuffer, indices, sizeof(uint32_t) * 6, 0);
 
     float elapsedTime = 0;
     float elapsedTotal = 0;

@@ -278,7 +278,7 @@ static void GetVkSwapchainInfo(VkSwapchainInfo* o_info) {
 
     vkGetPhysicalDeviceSurfaceFormatsKHR(vkContext.physicalDevice, vkContext.surface, &o_info->formatCount, o_info->surfaceFormats);
     vkGetPhysicalDeviceSurfacePresentModesKHR(vkContext.physicalDevice, vkContext.surface, &o_info->presentModesCount, NULL);
-    o_info->surfacePresentModes = calloc(o_info->formatCount, sizeof(*o_info->surfacePresentModes));
+    o_info->surfacePresentModes = calloc(o_info->presentModesCount, sizeof(*o_info->surfacePresentModes));
 
     vkGetPhysicalDeviceSurfacePresentModesKHR(vkContext.physicalDevice, vkContext.surface, &o_info->presentModesCount, o_info->surfacePresentModes);
 }
@@ -352,6 +352,9 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
 
     VkExtent2D extent = GetVkSwapchainExtent(&info.surfaceCapabilities, vkContext.windowWidth, vkContext.windowHeight);
 
+    free(info.surfaceFormats);
+    free(info.surfacePresentModes);
+
     uint32_t imageCount;
     if (DESIRED_IMAGE_COUNT >= info.surfaceCapabilities.minImageCount) {
         imageCount = DESIRED_IMAGE_COUNT;
@@ -423,7 +426,7 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
             }
         };
 
-        if (!vkCreateImageView(vkContext.logicalDevice, &info, NULL, &o_swapchain->imageViews[i]) == VK_SUCCESS) {
+        if (vkCreateImageView(vkContext.logicalDevice, &info, NULL, &o_swapchain->imageViews[i]) != VK_SUCCESS) {
             return false;
         }
     }
@@ -850,7 +853,7 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
 
     if (vkCreatePipelineLayout(vkContext.logicalDevice, &layoutInfo, NULL, &pipeline->layout) != VK_SUCCESS) {
         free(pipeline);
-        return false;
+        return NULL;
     }
 
     const VkGraphicsPipelineCreateInfo pipelineInfo = {
@@ -872,7 +875,7 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
     if (vkCreateGraphicsPipelines(vkContext.logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &pipeline->handle) != VK_SUCCESS) {
         vkDestroyPipelineLayout(vkContext.logicalDevice, pipeline->layout, NULL);
         free(pipeline);
-        return false;
+        return NULL;
     }
 
     vkDestroyShaderModule(vkContext.logicalDevice, vertModule, NULL);
@@ -921,6 +924,7 @@ static bool CreateSyncObjects() {
 }
 
 static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VKK_Color clear) {
+    
     const VkCommandBufferBeginInfo beginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
     };
@@ -1352,6 +1356,10 @@ static bool CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImag
     vkGetImageMemoryRequirements(vkContext.logicalDevice, *o_image, &memoryRequirements);
 
     uint32_t memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    if (memoryTypeIndex == UINT32_MAX) {
+        return false;
+    }
 
     const VkMemoryAllocateInfo allocateInfo = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
