@@ -41,9 +41,19 @@ typedef struct {
 
 #define MAX_PENDING_DELETIONS 1024
 
+typedef enum {
+    DELETION_BUFFER,
+    DELETION_TEXTURE
+} DeletionType;
+
 typedef struct {
-    VKK_Buffer buffer;
+    DeletionType deletionType;
     uint32_t framesUntilDeletion;
+
+    union {
+        VKK_Buffer buffer;
+        VKK_Texture texture;
+    };
 } PendingDeletion;
 
 typedef struct {
@@ -55,7 +65,7 @@ typedef struct {
 } DrawCall;
 
 #define MAX_FRAMES_IN_FLIGHT 2
-#define MAX_DRAW_CALLS 1024
+#define MAX_DRAW_CALLS 4096
 #define MAX_UNIFORMS 32
 #define MAX_TEXTURES 64
 
@@ -616,6 +626,28 @@ static void GetBufferUsageFlags(VKK_BufferUsage usage, VkBufferUsageFlags* o_usa
     }
 }
 
+static void QueueBufferDeletion(VKK_Buffer buffer) {
+
+    PendingDeletion deletion = {
+        .deletionType = DELETION_BUFFER,
+        .framesUntilDeletion = MAX_FRAMES_IN_FLIGHT,
+        .buffer = buffer,
+    };
+
+    vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
+}
+
+static void QueueTextureDeletion(VKK_Texture texture) {
+
+    PendingDeletion deletion = {
+        .deletionType = DELETION_TEXTURE,
+        .framesUntilDeletion = MAX_FRAMES_IN_FLIGHT,
+        .texture = texture
+    };
+
+    vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
+}
+
 void VKK_DestroyBuffer(VKK_Buffer buffer) {
     if (!buffer)
         return;
@@ -924,7 +956,7 @@ static bool CreateSyncObjects() {
 }
 
 static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, VKK_Color clear) {
-    
+
     const VkCommandBufferBeginInfo beginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
     };
@@ -1218,29 +1250,48 @@ static void DestroyBuffer(VKK_Buffer buffer) {
     free(buffer);
 }
 
+static void DestroyTexture(VKK_Texture texture) {
+
+    if (!texture)
+        return;
+
+    vkDestroySampler(vkContext.logicalDevice, texture->sampler, NULL);
+    vkDestroyImageView(vkContext.logicalDevice, texture->imageView, NULL);
+    vkDestroyImage(vkContext.logicalDevice, texture->image, NULL);
+    vkFreeMemory(vkContext.logicalDevice, texture->memory, NULL);
+    free(texture);
+}
+
+static void HandleDeletion(PendingDeletion* deletion) {
+
+    switch (deletion->deletionType) {
+
+        case DELETION_BUFFER:
+            DestroyBuffer(deletion->buffer);
+            break;
+
+        case DELETION_TEXTURE:
+            DestroyTexture(deletion->texture);
+            break;
+    }
+
+}
+
 static void ProcessPendingDeletions() {
+
     for (uint32_t i = 0; i < vkContext.pendingDeletionCount;) {
         vkContext.pendingDeletions[i].framesUntilDeletion--;
 
         if (vkContext.pendingDeletions[i].framesUntilDeletion <= 0) {
-            VKK_Buffer buffer = vkContext.pendingDeletions[i].buffer;
 
-            DestroyBuffer(buffer);
-
+            HandleDeletion(&vkContext.pendingDeletions[i]);
             vkContext.pendingDeletions[i] = vkContext.pendingDeletions[--vkContext.pendingDeletionCount];
+
         } else {
             i++;
         }
     }
 }
-
-static void ProcessPendingDeletionsImmediate() {
-    for (uint32_t i = 0; i < vkContext.pendingDeletionCount; i++) {
-        VKK_Buffer buffer = vkContext.pendingDeletions[i].buffer;
-        DestroyBuffer(buffer);
-    }
-}
-
 
 static void FillPhysicalDeviceInfo(VkPhysicalDevice device, VKK_PhysicalDeviceInfo* o_deviceInfo) {
 
@@ -1573,13 +1624,13 @@ void VKK_DestroyTexture(VKK_Texture texture) {
     if (!texture)
         return;
 
-    vkDeviceWaitIdle(vkContext.logicalDevice);
+    PendingDeletion deletion = {
+        .deletionType = DELETION_TEXTURE,
+        .framesUntilDeletion = MAX_FRAMES_IN_FLIGHT,
+        .texture = texture   
+    };
 
-    vkDestroySampler(vkContext.logicalDevice, texture->sampler, NULL);
-    vkDestroyImageView(vkContext.logicalDevice, texture->imageView, NULL);
-    vkDestroyImage(vkContext.logicalDevice, texture->image, NULL);
-    vkFreeMemory(vkContext.logicalDevice, texture->memory, NULL);
-    free(texture);
+    vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
 }
 
 uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo *o_devices, uint32_t maxDevices) {
@@ -1712,7 +1763,9 @@ void VKK_End() {
     vkDestroyDescriptorPool(vkContext.logicalDevice, vkContext.descriptorPool, NULL);
     vkDestroyDescriptorSetLayout(vkContext.logicalDevice, vkContext.descriptorSetLayout, NULL);
 
-    ProcessPendingDeletionsImmediate();
+    for (uint32_t i = 0; i < vkContext.pendingDeletionCount; i++) {
+        HandleDeletion(&vkContext.pendingDeletions[i]);
+    }
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(vkContext.logicalDevice, vkContext.imageAvailableSemaphores[i], NULL);
