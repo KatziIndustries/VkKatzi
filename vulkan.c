@@ -62,6 +62,9 @@ typedef struct {
     VkBuffer indexBuffer;
     uint32_t indexCount;
     VKK_Pipeline pipeline;
+
+    VkBuffer instanceBuffer;
+    uint32_t instanceCount;
 } DrawCall;
 
 #define MAX_FRAMES_IN_FLIGHT 2
@@ -524,6 +527,7 @@ static bool CreateFrameBuffers(VkSwapchain* swapchain) {
 }
 
 static bool CreateCommandPool() {
+
     const VkCommandPoolCreateInfo poolInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -788,16 +792,30 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
         }
     };
 
-    VkVertexInputBindingDescription bindingDescription = {
+    VkVertexInputBindingDescription bindingDescriptions[2];
+    uint32_t bindingCount = 1;
+
+    bindingDescriptions[0] = (VkVertexInputBindingDescription){
         .binding = 0,
         .stride = desc.vertexStride,
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX   
     };
 
-    VkVertexInputAttributeDescription attributeDescriptions[16];
+    if (desc.instanceStride > 0) {
+        bindingDescriptions[1] = (VkVertexInputBindingDescription){
+            .binding = 1,
+            .stride = desc.instanceStride,
+            .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE   
+        };
+
+        bindingCount = 2;
+    }
+
+    VkVertexInputAttributeDescription attributeDescriptions[32];
+    uint32_t attributeIndex = 0;
 
     for (uint32_t i = 0; i < desc.attributeCount; i++) {
-        attributeDescriptions[i] = (VkVertexInputAttributeDescription){
+        attributeDescriptions[attributeIndex++] = (VkVertexInputAttributeDescription){
             .binding = 0,
             .location = desc.attributes[i].location,
             .format = ConvertVertexFormat(desc.attributes[i].format),
@@ -805,11 +823,20 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
         };
     }
 
+    for (uint32_t i = 0; i < desc.instanceAttributesCount; i++) {
+        attributeDescriptions[attributeIndex++] = (VkVertexInputAttributeDescription){
+            .binding = 1,
+            .location = desc.instanceAttributes[i].location,
+            .format = ConvertVertexFormat(desc.instanceAttributes[i].format),
+            .offset = desc.instanceAttributes[i].offset
+        };
+    }
+
     const VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 1,
-        .pVertexBindingDescriptions = &bindingDescription,
-        .vertexAttributeDescriptionCount = desc.attributeCount,
+        .vertexBindingDescriptionCount = bindingCount,
+        .pVertexBindingDescriptions = bindingDescriptions,
+        .vertexAttributeDescriptionCount = attributeIndex,
         .pVertexAttributeDescriptions = attributeDescriptions
     };
 
@@ -1001,13 +1028,10 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
+    
     if (vkContext.drawCallIndex > 0) {
+        
         vkCmdPushConstants(commandBuffer, vkContext.drawCalls[0].pipeline->layout, ConvertShaderStage(vkContext.pushConstantRange.shaderStage), vkContext.pushConstantRange.offset, vkContext.pushConstantRange.size, vkContext.pushConstantData);
-    }
-
-    if (vkContext.drawCallIndex > 0) {
-
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.drawCalls[0].pipeline->layout, 0, 1, &vkContext.descriptorSet, 0, NULL);
 
         for (uint32_t i = 0; i < vkContext.drawCallIndex; i++) {
@@ -1018,11 +1042,17 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
 
             VkDeviceSize offset = 0;
             vkCmdBindVertexBuffers(commandBuffer, 0, 1, &drawCall->vertexBuffer, &offset);
+
+
+            if (drawCall->instanceBuffer != VK_NULL_HANDLE) {
+                vkCmdBindVertexBuffers(commandBuffer, 1, 1, &drawCall->instanceBuffer, &offset);
+            }
+
             vkCmdBindIndexBuffer(commandBuffer, drawCall->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCall->pipeline->layout, 0, 1, &vkContext.descriptorSet, 0, NULL);
         
-            vkCmdDrawIndexed(commandBuffer, drawCall->indexCount, 1, 0, 0, 0);
+            vkCmdDrawIndexed(commandBuffer, drawCall->indexCount, drawCall->instanceCount, 0, 0, 0);
         }
 
     }
@@ -1050,7 +1080,29 @@ void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCou
         .indexBuffer = indexBuffer->handle,
         .vertexCount = vertexCount,
         .indexCount = indexCount,
-        .pipeline = pipeline
+        .pipeline = pipeline,
+        .instanceBuffer = VK_NULL_HANDLE,
+        .instanceCount = 1
+    };
+
+    vkContext.drawCalls[vkContext.drawCallIndex++] = drawCall;
+}
+
+void VKK_DrawInstanced(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount, VKK_Buffer instanceBuffer, uint32_t instanceCount) {
+
+    if (vkContext.drawCallIndex >= MAX_DRAW_CALLS) {
+        fprintf(stderr, "[VKK][ERROR]: Max draw calls (%d) in frame reached, dropping draw call\n", MAX_DRAW_CALLS);
+        return;
+    }
+
+    DrawCall drawCall = {
+        .vertexBuffer = vertexBuffer->handle,
+        .indexBuffer = indexBuffer->handle,
+        .vertexCount = vertexCount,
+        .indexCount = indexCount,
+        .pipeline = pipeline,
+        .instanceBuffer = instanceBuffer ? instanceBuffer->handle : VK_NULL_HANDLE,
+        .instanceCount = instanceCount
     };
 
     vkContext.drawCalls[vkContext.drawCallIndex++] = drawCall;
@@ -1125,7 +1177,7 @@ VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* binding
     const VkDescriptorSetLayoutCreateInfo layoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = bindingsCount,
-        .pBindings = vkBindings
+        .pBindings = vkBindings,
     };
 
     if (vkCreateDescriptorSetLayout(vkContext.logicalDevice, &layoutInfo, NULL, &vkContext.descriptorSetLayout) != VK_SUCCESS) {
@@ -1140,7 +1192,7 @@ void VKK_BindTexture(uint32_t binding, VKK_Texture texture) {
     const VkDescriptorImageInfo imageInfo = {
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         .imageView = texture->imageView,
-        .sampler = texture->sampler
+        .sampler = texture->sampler,
     };
 
     const VkWriteDescriptorSet descriptorWrite = {
@@ -1223,7 +1275,7 @@ static bool CreateDescriptorPoolAndSet(uint32_t maxSets) {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .poolSizeCount = 2,
         .pPoolSizes = poolSizes,
-        .maxSets = maxSets
+        .maxSets = maxSets,
     };
 
     if (vkCreateDescriptorPool(vkContext.logicalDevice, &poolInfo, NULL, &vkContext.descriptorPool) != VK_SUCCESS) {
@@ -1540,7 +1592,6 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
     VKK_Buffer stagingBuffer = VKK_CreateBuffer(imageSize, VKK_BUFFER_USAGE_STAGING);
     VKK_WriteBuffer(stagingBuffer, pixels, imageSize, 0);
 
-    
     VKK_Texture texture = malloc(sizeof(struct VKK_Texture_T));
     texture->width = width;
     texture->height = height;

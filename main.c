@@ -12,31 +12,46 @@ const int WINDOW_HEIGHT = 480;
 uint32_t windowWidth;
 uint32_t windowHeight;
 
-bool leftMousePressed;
-
-int boundTexture = 0;
-
 typedef struct {
     float position[2];
     float uv[2];
 } TexturedVertex;
 
-static const TexturedVertex verticesLeft[] = {
+typedef struct {
+    float position[2];
+} Vertex;
+
+typedef struct {
+    float offset[2];
+    float color[3];
+} InstanceData;
+
+static const TexturedVertex vertices[] = {
     {{-1.0f, -1.0f}, {0.0f, 0.0f}},
     {{1.0f, -1.0f}, {1.0f, 0.0f}},
     {{1.0f, 1.0f}, {1.0f, 1.0f}},
     {{-1.0f, 1.0f}, {0.0f, 1.0f}},
 };
 
-static const VKK_Vertex verticesRight[] = {
-    {{-0.5f, -1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-    {{0.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-    {{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}},
-};
-
 static const uint32_t indices[] = {
     0, 1, 2,
     0, 2, 3
+};
+
+static const Vertex instanceVertices[] = {
+    { { 0.0f, -0.05f } },
+    { { 0.05f, 0.05f } },
+    { { -0.05f, 0.05f } }
+};
+
+static const uint32_t triangleIndices[] = {
+    0, 1, 2
+};
+
+static const InstanceData instances[] = {
+    { { -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f } },
+    { {  0.0f,  0.0f }, { 0.0f, 1.0f, 0.0f } }, 
+    { {  0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f } },
 };
 
 float* mergeArrays(float arr1[], int n1, float arr2[], int n2) {
@@ -152,38 +167,58 @@ int main() {
     VKK_Texture texture2 = VKK_CreateTexture("textures/KatizJa.png");
     VKK_BindTexture(0, texture);
     
-    VKK_VertexAttribute attributes[] = {
-        { .location = 0, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, position)},
-        { .location = 1, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, uv)},
-    };
+    VKK_Pipeline trianglePipeline;
+    {
+        VKK_VertexAttribute attributes[] = {
+            { .location = 0, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, position)},
+            { .location = 1, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(TexturedVertex, uv)},
+        };
+    
+        VKK_PipelineDescription pipelineDescription = {
+            .vertexShaderPath = "shader/compiled/vert.spv",
+            .fragmentShaderPath = "shader/compiled/frag.spv",
+            .attributes = attributes,
+            .attributeCount = 2,
+            .vertexStride = sizeof(TexturedVertex)
+        };
 
-    VKK_PipelineDescription pipelineDescription = {
-        .vertexShaderPath = "shader/compiled/vert.spv",
-        .fragmentShaderPath = "shader/compiled/frag.spv",
-        .attributes = attributes,
-        .attributeCount = 2,
-        .vertexStride = sizeof(TexturedVertex)
-    };
+        trianglePipeline = VKK_CreatePipeline(pipelineDescription);
+    }
 
-    VKK_PipelineDescription solidPipelineDescription = {
-        .vertexShaderPath = "shader/compiled/vert.spv",
-        .fragmentShaderPath = "shader/compiled/fragSolid.spv",
-        .attributes = attributes,
-        .attributeCount = 2,
-        .vertexStride = sizeof(VKK_Vertex)
-    };
+    VKK_Pipeline instancedPipeline;
+    {
+        VKK_VertexAttribute vertexAttributes[] = {
+            { .location = 0, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(Vertex, position) }
+        };
 
-    VKK_Pipeline trianglePipeline = VKK_CreatePipeline(pipelineDescription);
-    //VKK_Pipeline solidTrianglePipeline = VKK_CreatePipeline(solidPipelineDescription);
+        VKK_VertexAttribute instanceAttributes[] = {
+            { .location = 1, .format = VKK_VERTEX_FORMAT_FLOAT2, .offset = offsetof(InstanceData, offset) },
+            { .location = 2, .format = VKK_VERTEX_FORMAT_FLOAT3, .offset = offsetof(InstanceData, color) },
+        };
 
-    VKK_Buffer vertexBuffer = VKK_CreateBuffer(sizeof(TexturedVertex) * 4, VKK_BUFFER_USAGE_VERTEX);
-    VKK_WriteBuffer(vertexBuffer, verticesLeft, sizeof(TexturedVertex) * 4, 0);
+        VKK_PipelineDescription desc = {
+            .vertexShaderPath = "shader/compiled/instancedVert.spv",
+            .fragmentShaderPath = "shader/compiled/instancedFrag.spv",
+            .vertexStride = sizeof(Vertex),
+            .attributes = vertexAttributes,
+            .attributeCount = 1,
+            .instanceStride = sizeof(InstanceData),
+            .instanceAttributes = instanceAttributes,
+            .instanceAttributesCount = 2
+        };
 
-    VKK_Buffer solidVertexBuffer = VKK_CreateBuffer(sizeof(VKK_Vertex) * 3, VKK_BUFFER_USAGE_VERTEX);
-    VKK_WriteBuffer(solidVertexBuffer, verticesRight, sizeof(VKK_Vertex) * 3, 0);
+        instancedPipeline = VKK_CreatePipeline(desc);
+    }
 
-    VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint32_t) * 6, VKK_BUFFER_USAGE_INDEX);
-    VKK_WriteBuffer(indexBuffer, indices, sizeof(uint32_t) * 6, 0);
+
+    VKK_Buffer vertexBuffer = VKK_CreateBuffer(sizeof(Vertex) * 3, VKK_BUFFER_USAGE_VERTEX);
+    VKK_WriteBuffer(vertexBuffer, instanceVertices, sizeof(Vertex) * 3, 0);
+
+    VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint32_t) * 3, VKK_BUFFER_USAGE_INDEX);
+    VKK_WriteBuffer(indexBuffer, triangleIndices, sizeof(uint32_t) * 3, 0);
+
+    VKK_Buffer instanceBuffer = VKK_CreateBuffer(sizeof(InstanceData) * 3, VKK_BUFFER_USAGE_VERTEX);
+    VKK_WriteBuffer(instanceBuffer, instances, sizeof(InstanceData) * 3, 0);
 
     float elapsedTime = 0;
     float elapsedTotal = 0;
@@ -201,16 +236,6 @@ int main() {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
                 running = false;
-            }
-
-            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-                boundTexture = (boundTexture + 1) % 2;
-
-                if (boundTexture == 0) {
-                    VKK_BindTexture(0, texture);
-                } else {
-                    VKK_BindTexture(0, texture2);
-                }
             }
         }
 
@@ -251,8 +276,8 @@ int main() {
 
         VKK_WriteUniform(timeUniform, &elapsedTime, sizeof(float), 0);
 
-        //VKK_Draw(solidTrianglePipeline, solidVertexBuffer, 3, indexBuffer, 3);
-        VKK_Draw(trianglePipeline, vertexBuffer, 4, indexBuffer, 6);
+        //VKK_Draw(trianglePipeline, vertexBuffer, 4, indexBuffer, 6);
+        VKK_DrawInstanced(instancedPipeline, vertexBuffer, 3, indexBuffer, 3, instanceBuffer, 3);
     
         VKK_Color clearColor = {
             .r = 0.0f,
@@ -267,11 +292,11 @@ int main() {
     }
 
     VKK_DestroyBuffer(vertexBuffer);
-    VKK_DestroyBuffer(solidVertexBuffer);
     VKK_DestroyBuffer(indexBuffer);
+    VKK_DestroyBuffer(instanceBuffer);
 
     VKK_DestroyPipeline(trianglePipeline);
-    //VKK_DestroyPipeline(solidTrianglePipeline);
+    VKK_DestroyPipeline(instancedPipeline);
 
     VKK_DestroyTexture(texture);
     VKK_DestroyTexture(texture2);

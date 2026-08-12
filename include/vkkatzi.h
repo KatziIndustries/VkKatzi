@@ -35,9 +35,14 @@ typedef struct {
 typedef struct {
     char* vertexShaderPath;
     char* fragmentShaderPath;
+
     VKK_VertexAttribute* attributes;
     uint32_t attributeCount;
     uint32_t vertexStride;
+
+    uint32_t instanceStride;
+    VKK_VertexAttribute* instanceAttributes;
+    uint32_t instanceAttributesCount;
 } VKK_PipelineDescription;
 
 typedef enum {
@@ -63,11 +68,6 @@ typedef enum {
     VKK_SHADER_STAGE_FRAGMENT,
     VKK_SHADER_STAGE_ALL,
 } VKK_ShaderStage;
-
-typedef struct {
-    float position[2];
-    float color[4];
-} VKK_Vertex;
 
 typedef enum {
     VKK_PHYSICAL_DEVICE_TYPE_OTHER = 0,
@@ -192,6 +192,7 @@ void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t
 void VKK_DestroyUniform(VKK_Uniform uniform);
 
 void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount);
+void VKK_DrawInstanced(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount, VKK_Buffer instanceBuffer, uint32_t instanceCount);
 
 void VKK_SetPushConstantData(void* data);
 
