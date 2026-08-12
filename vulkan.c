@@ -39,7 +39,7 @@ typedef struct {
     VkPresentModeKHR surfacePresentMode;
 } VkSwapchain;
 
-#define MAX_PENDING_DELETIONS 1024
+#define MAX_PENDING_DELETIONS 4096
 
 typedef enum {
     DELETION_BUFFER,
