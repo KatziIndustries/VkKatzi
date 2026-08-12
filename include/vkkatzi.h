@@ -21,6 +21,7 @@ typedef struct VKK_Surface_T* VKK_Surface;
 typedef struct VKK_Texture_T* VKK_Texture;
 
 typedef enum {
+    VKK_VERTEX_FORMAT_FLOAT,
     VKK_VERTEX_FORMAT_FLOAT2,
     VKK_VERTEX_FORMAT_FLOAT3,
     VKK_VERTEX_FORMAT_FLOAT4

@@ -754,7 +754,11 @@ void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t
 }
 
 static VkFormat ConvertVertexFormat(VKK_VertexFormat format) {
+
     switch (format) {
+        case VKK_VERTEX_FORMAT_FLOAT:
+            return VK_FORMAT_R32_SFLOAT;
+
         case VKK_VERTEX_FORMAT_FLOAT2:
             return VK_FORMAT_R32G32_SFLOAT;
 
@@ -765,7 +769,8 @@ static VkFormat ConvertVertexFormat(VKK_VertexFormat format) {
             return VK_FORMAT_R32G32B32A32_SFLOAT;
     }
 
-    return VK_FORMAT_R32G32_SFLOAT;
+    LogError("Vertex format couldn't be converted (this is not supposed to happen wtf)");
+    return VK_FORMAT_R32_SFLOAT;
 }
 
 VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
