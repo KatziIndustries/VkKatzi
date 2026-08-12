@@ -211,11 +211,18 @@ int main() {
     }
 
 
-    VKK_Buffer vertexBuffer = VKK_CreateBuffer(sizeof(Vertex) * 3, VKK_BUFFER_USAGE_VERTEX);
-    VKK_WriteBuffer(vertexBuffer, instanceVertices, sizeof(Vertex) * 3, 0);
+    VKK_Buffer vertexBuffer = VKK_CreateBuffer(sizeof(TexturedVertex) * 4, VKK_BUFFER_USAGE_VERTEX);
+    VKK_WriteBuffer(vertexBuffer, vertices, sizeof(TexturedVertex) * 4, 0);
 
-    VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint32_t) * 3, VKK_BUFFER_USAGE_INDEX);
-    VKK_WriteBuffer(indexBuffer, triangleIndices, sizeof(uint32_t) * 3, 0);
+    VKK_Buffer indexBuffer = VKK_CreateBuffer(sizeof(uint32_t) * 6, VKK_BUFFER_USAGE_INDEX);
+    VKK_WriteBuffer(indexBuffer, indices, sizeof(uint32_t) * 6, 0);
+
+
+    VKK_Buffer instanceVertexBuffer = VKK_CreateBuffer(sizeof(Vertex) * 3, VKK_BUFFER_USAGE_VERTEX);
+    VKK_WriteBuffer(instanceVertexBuffer, instanceVertices, sizeof(Vertex) * 3, 0);
+
+    VKK_Buffer instanceIndexBuffer = VKK_CreateBuffer(sizeof(uint32_t) * 3, VKK_BUFFER_USAGE_INDEX);
+    VKK_WriteBuffer(instanceIndexBuffer, triangleIndices, sizeof(uint32_t) * 3, 0);
 
     VKK_Buffer instanceBuffer = VKK_CreateBuffer(sizeof(InstanceData) * 3, VKK_BUFFER_USAGE_VERTEX);
     VKK_WriteBuffer(instanceBuffer, instances, sizeof(InstanceData) * 3, 0);
@@ -276,8 +283,8 @@ int main() {
 
         VKK_WriteUniform(timeUniform, &elapsedTime, sizeof(float), 0);
 
-        //VKK_Draw(trianglePipeline, vertexBuffer, 4, indexBuffer, 6);
-        VKK_DrawInstanced(instancedPipeline, vertexBuffer, 3, indexBuffer, 3, instanceBuffer, 3);
+        VKK_Draw(trianglePipeline, vertexBuffer, 4, indexBuffer, 6);
+        VKK_DrawInstanced(instancedPipeline, instanceVertexBuffer, 3, instanceIndexBuffer, 3, instanceBuffer, 3);
     
         VKK_Color clearColor = {
             .r = 0.0f,
@@ -293,6 +300,9 @@ int main() {
 
     VKK_DestroyBuffer(vertexBuffer);
     VKK_DestroyBuffer(indexBuffer);
+
+    VKK_DestroyBuffer(instanceVertexBuffer);
+    VKK_DestroyBuffer(instanceIndexBuffer);
     VKK_DestroyBuffer(instanceBuffer);
 
     VKK_DestroyPipeline(trianglePipeline);
