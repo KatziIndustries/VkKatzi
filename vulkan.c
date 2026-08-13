@@ -1585,7 +1585,7 @@ static void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, ui
     EndSingleTimeCommands(commandBuffer);
 }
 
-VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height) {
+VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_SamplerFilter samplerFilter) {
 
     if (!vkContext.commandPool) {
         LogError("VKK_InitRenderer has to be called before creating a Texture");
@@ -1635,8 +1635,8 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
 
     const VkSamplerCreateInfo samplerInfo = {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = VK_FILTER_LINEAR,
-        .minFilter = VK_FILTER_LINEAR,
+        .magFilter = (VkFilter)samplerFilter,
+        .minFilter = (VkFilter)samplerFilter,
         .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,   
         .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,   
         .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
@@ -1645,7 +1645,7 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable = VK_FALSE,
         .compareOp = VK_COMPARE_OP_ALWAYS,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
     };
 
     if (vkCreateSampler(vkContext.logicalDevice, &samplerInfo, NULL, &texture->sampler) != VK_SUCCESS) {
@@ -1657,7 +1657,7 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
     return texture;
 }
 
-VKK_Texture VKK_CreateTexture(const char* path) {
+VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter) {
 
     int width, height, channels;
 
@@ -1668,7 +1668,7 @@ VKK_Texture VKK_CreateTexture(const char* path) {
         return NULL;
     }
     
-    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height);
+    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height, samplerFilter);
 
     stbi_image_free(pixels);
 

@@ -163,8 +163,8 @@ int main() {
     VKK_Uniform timeUniform = VKK_CreateUniform(sizeof(float), VKK_SHADER_STAGE_VERTEX);
     VKK_BindUniform(1, timeUniform);
 
-    VKK_Texture texture = VKK_CreateTexture("textures/katzi!.png");
-    VKK_Texture texture2 = VKK_CreateTexture("textures/KatizJa.png");
+    VKK_Texture texture = VKK_CreateTexture("textures/katzi!.png", VKK_SAMPLER_FILTER_LINEAR);
+    VKK_Texture texture2 = VKK_CreateTexture("textures/KatizJa.png", VKK_SAMPLER_FILTER_LINEAR);
     VKK_BindTexture(0, texture);
     
     VKK_Pipeline trianglePipeline;

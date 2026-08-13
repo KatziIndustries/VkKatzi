@@ -27,6 +27,11 @@ typedef enum {
     VKK_VERTEX_FORMAT_FLOAT4
 } VKK_VertexFormat;
 
+typedef enum {
+    VKK_SAMPLER_FILTER_NEAREST = 0,
+    VKK_SAMPLER_FILTER_LINEAR = 1,
+} VKK_SamplerFilter;
+
 typedef struct {
     uint32_t location;
     VKK_VertexFormat format;
@@ -200,8 +205,8 @@ void VKK_SetPushConstantData(void* data);
 VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc);
 void VKK_DestroyPipeline(VKK_Pipeline pipeline);
 
-VKK_Texture VKK_CreateTexture(const char* path);
-VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height);
+VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter);
+VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_SamplerFilter samplerFilter);
 void VKK_DestroyTexture(VKK_Texture texture);
 
 VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* bindings, uint32_t bindingsCount);
