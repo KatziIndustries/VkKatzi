@@ -1761,7 +1761,7 @@ static void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, ui
     EndSingleTimeCommands(commandBuffer);
 }
 
-VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_SamplerFilter samplerFilter, VKK_SamplerAddressMode addressMode) {
+VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height) {
 
     if (!vkContext.commandPool) {
         LogError("VKK_InitRenderer has to be called before creating a Texture");
@@ -1811,13 +1811,13 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
 
     const VkSamplerCreateInfo samplerInfo = {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = (VkFilter)samplerFilter,
-        .minFilter = (VkFilter)samplerFilter,
-        .addressModeU = (VkSamplerAddressMode)addressMode,   
-        .addressModeV = (VkSamplerAddressMode)addressMode,   
-        .addressModeW = (VkSamplerAddressMode)addressMode,
-        .anisotropyEnable = VK_TRUE,
-        .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+        .magFilter = (VkFilter)VKK_SAMPLER_FILTER_LINEAR,
+        .minFilter = (VkFilter)VKK_SAMPLER_FILTER_LINEAR,
+        .addressModeU = (VkSamplerAddressMode)VKK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeV = (VkSamplerAddressMode)VKK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeW = (VkSamplerAddressMode)VKK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .anisotropyEnable = VK_FALSE,
+        .borderColor = (VkBorderColor)VKK_BORDER_COLOR_INT_OPAQUE_BLACK,
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable = VK_FALSE,
         .compareOp = VK_COMPARE_OP_ALWAYS,
@@ -1833,7 +1833,32 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
     return texture;
 }
 
-VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter, VKK_SamplerAddressMode addressMode) {
+void VKK_SetTextureSampler(VKK_Texture texture, VKK_SamplerInfo samplerInfo) {
+
+    const VkSamplerCreateInfo vkSamplerInfo = {
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter = (VkFilter)samplerInfo.filter,
+        .minFilter = (VkFilter)samplerInfo.filter,
+        .addressModeU = (VkSamplerAddressMode)samplerInfo.addressMode,
+        .addressModeV = (VkSamplerAddressMode)samplerInfo.addressMode,
+        .addressModeW = (VkSamplerAddressMode)samplerInfo.addressMode,
+        .anisotropyEnable = VK_FALSE,
+        .borderColor = (VkBorderColor)samplerInfo.borderColor,
+        .unnormalizedCoordinates = VK_FALSE,
+        .compareEnable = VK_FALSE,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+    };
+
+    vkDestroySampler(vkContext.logicalDevice, texture->sampler, NULL);
+
+    if (vkCreateSampler(vkContext.logicalDevice, &vkSamplerInfo, NULL, &texture->sampler) != VK_SUCCESS) {
+        LogError("Failed to create texture sampler");
+        VKK_DestroyTexture(texture);
+    }
+}
+
+VKK_Texture VKK_CreateTexture(const char* path) {
 
     int width, height, channels;
 
@@ -1844,7 +1869,7 @@ VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter,
         return NULL;
     }
     
-    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height, samplerFilter, addressMode);
+    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height);
 
     stbi_image_free(pixels);
 

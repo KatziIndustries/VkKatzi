@@ -312,6 +312,17 @@ typedef struct {
 } VKK_InstanceInfo;
 
 typedef enum {
+    VKK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK = 0,
+    VKK_BORDER_COLOR_INT_TRANSPARENT_BLACK = 1,
+    VKK_BORDER_COLOR_FLOAT_OPAQUE_BLACK = 2,
+    VKK_BORDER_COLOR_INT_OPAQUE_BLACK = 3,
+    VKK_BORDER_COLOR_FLOAT_OPAQUE_WHITE = 4,
+    VKK_BORDER_COLOR_INT_OPAQUE_WHITE = 5,
+    VKK_BORDER_COLOR_FLOAT_CUSTOM_EXT = 1000287003,
+    VKK_BORDER_COLOR_INT_CUSTOM_EXT = 1000287004,
+} VKK_SamplerBorderColor;
+
+typedef enum {
     VKK_SUCCESS = 0,
     VKK_ERROR_INSTANCE_CREATION_FAILED,
     VKK_ERROR_SURFACE_CREATION_FAILED,
@@ -335,6 +346,12 @@ typedef struct {
     float b;
     float a;
 } VKK_Color;
+
+typedef struct {
+    VKK_SamplerFilter filter;
+    VKK_SamplerAddressMode addressMode;
+    VKK_SamplerBorderColor borderColor;
+} VKK_SamplerInfo;
 
 typedef enum {
     VKK_DESCRIPTOR_TYPE_SAMPLER = 0,
@@ -395,9 +412,10 @@ void VKK_SetPushConstantData(void* data);
 VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc);
 void VKK_DestroyPipeline(VKK_Pipeline pipeline);
 
-VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter, VKK_SamplerAddressMode addressMode);
-VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_SamplerFilter samplerFilter, VKK_SamplerAddressMode addressMode);
+VKK_Texture VKK_CreateTexture(const char* path);
+VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height);
 void VKK_DestroyTexture(VKK_Texture texture);
+void VKK_SetTextureSampler(VKK_Texture texture, VKK_SamplerInfo samplerInfo);
 
 VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* bindings, uint32_t bindingsCount);
 

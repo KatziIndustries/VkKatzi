@@ -134,7 +134,7 @@ int main() {
     }
 
     fprintf(stdout, "[Selected Device]: Name: %s, Device Id: %i, Device Type: %i\n", deviceInfo.properties.deviceName, deviceInfo.properties.deviceID, deviceInfo.properties.deviceType);
-    printf("[Device Features]: Anisotropy: %d\n", deviceInfo.features.samplerAnisotropy);
+    printf("[Device Features]: Anisotropy: %d, Max Anisotropy: %f\n", deviceInfo.features.samplerAnisotropy, deviceInfo.properties.limits.maxSamplerAnisotropy);
     
     VKK_PushConstantRange pushConstantRange = {
         .shaderStage = VKK_SHADER_STAGE_ALL,
@@ -164,9 +164,19 @@ int main() {
     VKK_Uniform timeUniform = VKK_CreateUniform(sizeof(float), VKK_SHADER_STAGE_VERTEX);
     VKK_BindUniform(1, timeUniform);
 
-    VKK_Texture texture = VKK_CreateTexture("textures/github.jpg", VKK_SAMPLER_FILTER_LINEAR, VKK_SAMPLER_ADDRESS_MODE_REPEAT);
-    VKK_Texture texture2 = VKK_CreateTexture("textures/katzi!.png", VKK_SAMPLER_FILTER_LINEAR, VKK_SAMPLER_ADDRESS_MODE_REPEAT);
-    VKK_BindTexture(0, texture);
+    VKK_Texture texture = VKK_CreateTexture("textures/github.jpg");
+    VKK_Texture texture2 = VKK_CreateTexture("textures/katzi!.png");
+
+    VKK_SamplerInfo textureSampler = {
+        .addressMode = VKK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+        .borderColor = VKK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
+        .filter = VKK_SAMPLER_FILTER_LINEAR
+    };
+
+    VKK_SetTextureSampler(texture, textureSampler);
+    VKK_SetTextureSampler(texture2, textureSampler);
+    
+    VKK_BindTexture(0, texture2);
     
     VKK_Pipeline trianglePipeline;
     {
