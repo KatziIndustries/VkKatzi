@@ -1865,7 +1865,7 @@ VKK_Texture VKK_CreateTexture(const char* path) {
     stbi_uc* pixels = stbi_load(path, &width, &height, &channels, STBI_rgb_alpha);
     
     if (!pixels) {
-        fprintf(stderr, "[VKK][ERROR]: Failed to load image '%s'", path);
+        fprintf(stderr, "[VKK][ERROR]: Failed to load image '%s'\n", path);
         return NULL;
     }
     
