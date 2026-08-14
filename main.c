@@ -28,9 +28,9 @@ typedef struct {
 
 static const TexturedVertex vertices[] = {
     {{-1.0f, -1.0f}, {0.0f, 0.0f}},
-    {{1.0f, -1.0f}, {1.0f, 0.0f}},
-    {{1.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-1.0f, 1.0f}, {0.0f, 1.0f}},
+    {{1.0f, -1.0f}, {5.0f, 0.0f}},
+    {{1.0f, 1.0f}, {5.0f, 5.0f}},
+    {{-1.0f, 1.0f}, {0.0f, 5.0f}},
 };
 
 static const uint32_t indices[] = {
@@ -124,7 +124,7 @@ int main() {
     uint32_t count = VKK_EnumeratePhysicalDevices(devices, 8);
 
     for (uint32_t i = 0; i < count; i++) {
-        printf("[Device #%i] %s\n", i, devices[i].name);
+        printf("[Device #%i] %s\n", i, devices[i].properties.name);
     }
 
     VKK_PhysicalDeviceInfo deviceInfo;
@@ -133,7 +133,8 @@ int main() {
         exit(1);
     }
 
-    fprintf(stdout, "[Selected Device]: Name: %s, Device Id: %i, Device Type: %i\n", deviceInfo.name, deviceInfo.deviceID, deviceInfo.deviceType);
+    fprintf(stdout, "[Selected Device]: Name: %s, Device Id: %i, Device Type: %i\n", deviceInfo.properties.name, deviceInfo.properties.deviceID, deviceInfo.properties.deviceType);
+    printf("[Device Features]: Anisotropy: %d\n", deviceInfo.features.samplerAnisotropy);
     
     VKK_PushConstantRange pushConstantRange = {
         .shaderStage = VKK_SHADER_STAGE_ALL,
@@ -163,8 +164,8 @@ int main() {
     VKK_Uniform timeUniform = VKK_CreateUniform(sizeof(float), VKK_SHADER_STAGE_VERTEX);
     VKK_BindUniform(1, timeUniform);
 
-    VKK_Texture texture = VKK_CreateTexture("textures/katzi!.png", VKK_SAMPLER_FILTER_LINEAR);
-    VKK_Texture texture2 = VKK_CreateTexture("textures/KatizJa.png", VKK_SAMPLER_FILTER_LINEAR);
+    VKK_Texture texture = VKK_CreateTexture("textures/github.jpg", VKK_SAMPLER_FILTER_LINEAR, VKK_SAMPLER_ADDRESS_MODE_REPEAT);
+    VKK_Texture texture2 = VKK_CreateTexture("textures/katzi!.png", VKK_SAMPLER_FILTER_LINEAR, VKK_SAMPLER_ADDRESS_MODE_REPEAT);
     VKK_BindTexture(0, texture);
     
     VKK_Pipeline trianglePipeline;

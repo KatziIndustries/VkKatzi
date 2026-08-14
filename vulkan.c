@@ -1350,7 +1350,7 @@ static void ProcessPendingDeletions() {
     }
 }
 
-static void FillPhysicalDeviceInfo(VkPhysicalDevice device, VKK_PhysicalDeviceInfo* o_deviceInfo) {
+static void FillPhysicalDeviceProperties(VkPhysicalDevice device, VKK_PhysicalDeviceProperties* o_deviceInfo) {
 
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(device, &properties);
@@ -1362,6 +1362,68 @@ static void FillPhysicalDeviceInfo(VkPhysicalDevice device, VKK_PhysicalDeviceIn
     o_deviceInfo->deviceID = properties.deviceID;
     o_deviceInfo->deviceType = properties.deviceType;
 
+}
+
+static void FillPhysicalDeviceFeatures(VkPhysicalDevice device, VKK_PhysicalDeviceFeatures* o_deviceFeatures) {
+
+    VkPhysicalDeviceFeatures features;
+    vkGetPhysicalDeviceFeatures(device, &features);
+
+    o_deviceFeatures->robustBufferAccess = features.robustBufferAccess;
+    o_deviceFeatures->fullDrawIndexUint32 = features.fullDrawIndexUint32;
+    o_deviceFeatures->imageCubeArray = features.imageCubeArray;
+    o_deviceFeatures->independentBlend = features.independentBlend;
+    o_deviceFeatures->geometryShader = features.geometryShader;
+    o_deviceFeatures->tessellationShader = features.tessellationShader;
+    o_deviceFeatures->sampleRateShading = features.sampleRateShading;
+    o_deviceFeatures->dualSrcBlend = features.dualSrcBlend;
+    o_deviceFeatures->logicOp = features.logicOp;
+    o_deviceFeatures->multiDrawIndirect = features.multiDrawIndirect;
+    o_deviceFeatures->drawIndirectFirstInstance = features.drawIndirectFirstInstance;
+    o_deviceFeatures->depthClamp = features.depthClamp;
+    o_deviceFeatures->depthBiasClamp = features.depthBiasClamp;
+    o_deviceFeatures->fillModeNonSolid = features.fillModeNonSolid;
+    o_deviceFeatures->depthBounds = features.depthBounds;
+    o_deviceFeatures->wideLines = features.wideLines;
+    o_deviceFeatures->largePoints = features.largePoints;
+    o_deviceFeatures->alphaToOne = features.alphaToOne;
+    o_deviceFeatures->multiViewport = features.multiViewport;
+    o_deviceFeatures->samplerAnisotropy = features.samplerAnisotropy;
+    o_deviceFeatures->textureCompressionETC2 = features.textureCompressionETC2;
+    o_deviceFeatures->textureCompressionASTC_LDR = features.textureCompressionASTC_LDR;
+    o_deviceFeatures->textureCompressionBC = features.textureCompressionBC;
+    o_deviceFeatures->occlusionQueryPrecise = features.occlusionQueryPrecise;
+    o_deviceFeatures->pipelineStatisticsQuery = features.pipelineStatisticsQuery;
+    o_deviceFeatures->vertexPipelineStoresAndAtomics = features.vertexPipelineStoresAndAtomics;
+    o_deviceFeatures->fragmentStoresAndAtomics = features.fragmentStoresAndAtomics;
+    o_deviceFeatures->shaderTessellationAndGeometryPointSize = features.shaderTessellationAndGeometryPointSize;
+    o_deviceFeatures->shaderImageGatherExtended = features.shaderImageGatherExtended;
+    o_deviceFeatures->shaderStorageImageExtendedFormats = features.shaderStorageImageExtendedFormats;
+    o_deviceFeatures->shaderStorageImageMultisample = features.shaderStorageImageMultisample;
+    o_deviceFeatures->shaderStorageImageReadWithoutFormat = features.shaderStorageImageReadWithoutFormat;
+    o_deviceFeatures->shaderStorageImageWriteWithoutFormat = features.shaderStorageImageWriteWithoutFormat;
+    o_deviceFeatures->shaderUniformBufferArrayDynamicIndexing = features.shaderUniformBufferArrayDynamicIndexing;
+    o_deviceFeatures->shaderSampledImageArrayDynamicIndexing = features.shaderSampledImageArrayDynamicIndexing;
+    o_deviceFeatures->shaderStorageBufferArrayDynamicIndexing = features.shaderStorageBufferArrayDynamicIndexing;
+    o_deviceFeatures->shaderStorageImageArrayDynamicIndexing = features.shaderStorageImageArrayDynamicIndexing;
+    o_deviceFeatures->shaderClipDistance = features.shaderClipDistance;
+    o_deviceFeatures->shaderCullDistance = features.shaderCullDistance;
+    o_deviceFeatures->shaderFloat64 = features.shaderFloat64;
+    o_deviceFeatures->shaderInt64 = features.shaderInt64;
+    o_deviceFeatures->shaderInt16 = features.shaderInt16;
+    o_deviceFeatures->shaderResourceResidency = features.shaderResourceResidency;
+    o_deviceFeatures->shaderResourceMinLod = features.shaderResourceMinLod;
+    o_deviceFeatures->sparseBinding = features.sparseBinding;
+    o_deviceFeatures->sparseResidencyBuffer = features.sparseResidencyBuffer;
+    o_deviceFeatures->sparseResidencyImage2D = features.sparseResidencyImage2D;
+    o_deviceFeatures->sparseResidencyImage3D = features.sparseResidencyImage3D;
+    o_deviceFeatures->sparseResidency2Samples = features.sparseResidency2Samples;
+    o_deviceFeatures->sparseResidency4Samples = features.sparseResidency4Samples;
+    o_deviceFeatures->sparseResidency8Samples = features.sparseResidency8Samples;
+    o_deviceFeatures->sparseResidency16Samples = features.sparseResidency16Samples;
+    o_deviceFeatures->sparseResidencyAliased = features.sparseResidencyAliased;
+    o_deviceFeatures->variableMultisampleRate = features.variableMultisampleRate;
+    o_deviceFeatures->inheritedQueries = features.inheritedQueries;
 }
 
 VkInstance _VKK_Internal_GetRawInstanceHandle(VKK_Instance instance) {
@@ -1585,7 +1647,7 @@ static void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, ui
     EndSingleTimeCommands(commandBuffer);
 }
 
-VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_SamplerFilter samplerFilter) {
+VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_SamplerFilter samplerFilter, VKK_SamplerAddressMode addressMode) {
 
     if (!vkContext.commandPool) {
         LogError("VKK_InitRenderer has to be called before creating a Texture");
@@ -1637,9 +1699,9 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter = (VkFilter)samplerFilter,
         .minFilter = (VkFilter)samplerFilter,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,   
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,   
-        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeU = (VkSamplerAddressMode)addressMode,   
+        .addressModeV = (VkSamplerAddressMode)addressMode,   
+        .addressModeW = (VkSamplerAddressMode)addressMode,
         .anisotropyEnable = VK_FALSE,
         .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
         .unnormalizedCoordinates = VK_FALSE,
@@ -1657,7 +1719,7 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
     return texture;
 }
 
-VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter) {
+VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter, VKK_SamplerAddressMode addressMode) {
 
     int width, height, channels;
 
@@ -1668,7 +1730,7 @@ VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter)
         return NULL;
     }
     
-    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height, samplerFilter);
+    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height, samplerFilter, addressMode);
 
     stbi_image_free(pixels);
 
@@ -1701,7 +1763,8 @@ uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo *o_devices, uint32_
     uint32_t count = deviceCount > maxDevices ? maxDevices : deviceCount;
 
     for (uint32_t i = 0; i < count; i++) {
-        FillPhysicalDeviceInfo(devices[i], &o_devices[i]);
+        FillPhysicalDeviceProperties(devices[i], &o_devices[i].properties);
+        FillPhysicalDeviceFeatures(devices[i], &o_devices[i].features);
     }
 
     memcpy(vkContext.availablePhysicalDevices, devices, count * sizeof(VkPhysicalDevice));
@@ -1752,7 +1815,8 @@ VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_device
     }
 
     vkContext.physicalDevice = vkContext.availablePhysicalDevices[deviceIndex];
-    FillPhysicalDeviceInfo(vkContext.physicalDevice, o_deviceInfo);
+    FillPhysicalDeviceProperties(vkContext.physicalDevice, &o_deviceInfo->properties);
+    FillPhysicalDeviceFeatures(vkContext.physicalDevice, &o_deviceInfo->features);
 
     if (!FindQueueFamilies()) {
         return VKK_ERROR_NO_SUITABLE_DEVICE;

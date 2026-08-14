@@ -32,6 +32,14 @@ typedef enum {
     VKK_SAMPLER_FILTER_LINEAR = 1,
 } VKK_SamplerFilter;
 
+typedef enum {
+    VKK_SAMPLER_ADDRESS_MODE_REPEAT = 0,
+    VKK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT = 1,
+    VKK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE = 2,
+    VKK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER = 3,
+    VKK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE = 4,
+} VKK_SamplerAddressMode;
+
 typedef struct {
     uint32_t location;
     VKK_VertexFormat format;
@@ -101,6 +109,69 @@ typedef struct {
     uint32_t deviceID;
     uint32_t vendorID;
     VKK_PhysicalDeviceType deviceType;
+} VKK_PhysicalDeviceProperties;
+
+typedef struct {
+    bool robustBufferAccess;
+    bool fullDrawIndexUint32;
+    bool imageCubeArray;
+    bool independentBlend;
+    bool geometryShader;
+    bool tessellationShader;
+    bool sampleRateShading;
+    bool dualSrcBlend;
+    bool logicOp;
+    bool multiDrawIndirect;
+    bool drawIndirectFirstInstance;
+    bool depthClamp;
+    bool depthBiasClamp;
+    bool fillModeNonSolid;
+    bool depthBounds;
+    bool wideLines;
+    bool largePoints;
+    bool alphaToOne;
+    bool multiViewport;
+    bool samplerAnisotropy;
+    bool textureCompressionETC2;
+    bool textureCompressionASTC_LDR;
+    bool textureCompressionBC;
+    bool occlusionQueryPrecise;
+    bool pipelineStatisticsQuery;
+    bool vertexPipelineStoresAndAtomics;
+    bool fragmentStoresAndAtomics;
+    bool shaderTessellationAndGeometryPointSize;
+    bool shaderImageGatherExtended;
+    bool shaderStorageImageExtendedFormats;
+    bool shaderStorageImageMultisample;
+    bool shaderStorageImageReadWithoutFormat;
+    bool shaderStorageImageWriteWithoutFormat;
+    bool shaderUniformBufferArrayDynamicIndexing;
+    bool shaderSampledImageArrayDynamicIndexing;
+    bool shaderStorageBufferArrayDynamicIndexing;
+    bool shaderStorageImageArrayDynamicIndexing;
+    bool shaderClipDistance;
+    bool shaderCullDistance;
+    bool shaderFloat64;
+    bool shaderInt64;
+    bool shaderInt16;
+    bool shaderResourceResidency;
+    bool shaderResourceMinLod;
+    bool sparseBinding;
+    bool sparseResidencyBuffer;
+    bool sparseResidencyImage2D;
+    bool sparseResidencyImage3D;
+    bool sparseResidency2Samples;
+    bool sparseResidency4Samples;
+    bool sparseResidency8Samples;
+    bool sparseResidency16Samples;
+    bool sparseResidencyAliased;
+    bool variableMultisampleRate;
+    bool inheritedQueries;
+} VKK_PhysicalDeviceFeatures;
+
+typedef struct {
+    VKK_PhysicalDeviceProperties properties;
+    VKK_PhysicalDeviceFeatures features;
 } VKK_PhysicalDeviceInfo;
 
 typedef struct {
@@ -205,8 +276,8 @@ void VKK_SetPushConstantData(void* data);
 VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc);
 void VKK_DestroyPipeline(VKK_Pipeline pipeline);
 
-VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter);
-VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_SamplerFilter samplerFilter);
+VKK_Texture VKK_CreateTexture(const char* path, VKK_SamplerFilter samplerFilter, VKK_SamplerAddressMode addressMode);
+VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_SamplerFilter samplerFilter, VKK_SamplerAddressMode addressMode);
 void VKK_DestroyTexture(VKK_Texture texture);
 
 VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* bindings, uint32_t bindingsCount);
