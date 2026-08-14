@@ -124,7 +124,7 @@ int main() {
     uint32_t count = VKK_EnumeratePhysicalDevices(devices, 8);
 
     for (uint32_t i = 0; i < count; i++) {
-        printf("[Device #%i] %s\n", i, devices[i].properties.name);
+        printf("[Device #%i] %s\n", i, devices[i].properties.deviceName);
     }
 
     VKK_PhysicalDeviceInfo deviceInfo;
@@ -133,7 +133,7 @@ int main() {
         exit(1);
     }
 
-    fprintf(stdout, "[Selected Device]: Name: %s, Device Id: %i, Device Type: %i\n", deviceInfo.properties.name, deviceInfo.properties.deviceID, deviceInfo.properties.deviceType);
+    fprintf(stdout, "[Selected Device]: Name: %s, Device Id: %i, Device Type: %i\n", deviceInfo.properties.deviceName, deviceInfo.properties.deviceID, deviceInfo.properties.deviceType);
     printf("[Device Features]: Anisotropy: %d\n", deviceInfo.features.samplerAnisotropy);
     
     VKK_PushConstantRange pushConstantRange = {

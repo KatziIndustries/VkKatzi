@@ -740,7 +740,7 @@ void VKK_BindUniform(uint32_t binding, VKK_Uniform uniform) {
         .dstArrayElement = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         .descriptorCount = 1,
-        .pBufferInfo = &bufferInfo
+        .pBufferInfo = &bufferInfo,
     };
 
     vkUpdateDescriptorSets(vkContext.logicalDevice, 1, &descriptorWrite, 0, NULL);
@@ -1175,7 +1175,7 @@ VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* binding
             .binding = bindings[i].binding,
             .descriptorType = (VkDescriptorType)bindings[i].descriptorType,
             .descriptorCount = 1,
-            .stageFlags = ConvertShaderStage(bindings[i].shaderStage)
+            .stageFlags = ConvertShaderStage(bindings[i].shaderStage),
         };
     }
 
@@ -1355,13 +1355,127 @@ static void FillPhysicalDeviceProperties(VkPhysicalDevice device, VKK_PhysicalDe
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(device, &properties);
 
-    strncpy(o_deviceInfo->name, properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
+    strncpy(o_deviceInfo->deviceName, properties.deviceName, VKK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
     o_deviceInfo->apiVersion = properties.apiVersion;
     o_deviceInfo->driverVersion = properties.driverVersion;
     o_deviceInfo->vendorID = properties.vendorID;
     o_deviceInfo->deviceID = properties.deviceID;
     o_deviceInfo->deviceType = properties.deviceType;
 
+    // I don't know if this is being filled in correctly and I will not check if it is
+    o_deviceInfo->limits.maxImageDimension1D = properties.limits.maxImageDimension1D;
+    o_deviceInfo->limits.maxImageDimension2D = properties.limits.maxImageDimension2D;
+    o_deviceInfo->limits.maxImageDimension3D = properties.limits.maxImageDimension3D;
+    o_deviceInfo->limits.maxImageDimensionCube = properties.limits.maxImageDimensionCube;
+    o_deviceInfo->limits.maxImageArrayLayers = properties.limits.maxImageArrayLayers;
+    o_deviceInfo->limits.maxTexelBufferElements = properties.limits.maxTexelBufferElements;
+    o_deviceInfo->limits.maxUniformBufferRange = properties.limits.maxUniformBufferRange;
+    o_deviceInfo->limits.maxStorageBufferRange = properties.limits.maxStorageBufferRange;
+    o_deviceInfo->limits.maxPushConstantsSize = properties.limits.maxPushConstantsSize;
+    o_deviceInfo->limits.maxMemoryAllocationCount = properties.limits.maxMemoryAllocationCount;
+    o_deviceInfo->limits.maxSamplerAllocationCount = properties.limits.maxSamplerAllocationCount;
+    o_deviceInfo->limits.bufferImageGranularity = properties.limits.bufferImageGranularity;
+    o_deviceInfo->limits.sparseAddressSpaceSize = properties.limits.sparseAddressSpaceSize;
+    o_deviceInfo->limits.maxBoundDescriptorSets = properties.limits.maxBoundDescriptorSets;
+    o_deviceInfo->limits.maxPerStageDescriptorSamplers = properties.limits.maxPerStageDescriptorSamplers;
+    o_deviceInfo->limits.maxPerStageDescriptorUniformBuffers = properties.limits.maxPerStageDescriptorUniformBuffers;
+    o_deviceInfo->limits.maxPerStageDescriptorStorageBuffers = properties.limits.maxPerStageDescriptorStorageBuffers;
+    o_deviceInfo->limits.maxPerStageDescriptorSampledImages = properties.limits.maxPerStageDescriptorSampledImages;
+    o_deviceInfo->limits.maxPerStageDescriptorStorageImages = properties.limits.maxPerStageDescriptorStorageImages;
+    o_deviceInfo->limits.maxPerStageDescriptorInputAttachments = properties.limits.maxPerStageDescriptorInputAttachments;
+    o_deviceInfo->limits.maxPerStageResources = properties.limits.maxPerStageResources;
+    o_deviceInfo->limits.maxDescriptorSetSamplers = properties.limits.maxDescriptorSetSamplers;
+    o_deviceInfo->limits.maxDescriptorSetUniformBuffers = properties.limits.maxDescriptorSetUniformBuffers;
+    o_deviceInfo->limits.maxDescriptorSetUniformBuffersDynamic = properties.limits.maxDescriptorSetUniformBuffersDynamic;
+    o_deviceInfo->limits.maxDescriptorSetStorageBuffers = properties.limits.maxDescriptorSetStorageBuffers;
+    o_deviceInfo->limits.maxDescriptorSetStorageBuffersDynamic = properties.limits.maxDescriptorSetStorageBuffersDynamic;
+    o_deviceInfo->limits.maxDescriptorSetSampledImages = properties.limits.maxDescriptorSetSampledImages;
+    o_deviceInfo->limits.maxDescriptorSetStorageImages = properties.limits.maxDescriptorSetStorageImages;
+    o_deviceInfo->limits.maxDescriptorSetInputAttachments = properties.limits.maxDescriptorSetInputAttachments;
+    o_deviceInfo->limits.maxVertexInputAttributes = properties.limits.maxVertexInputAttributes;
+    o_deviceInfo->limits.maxVertexInputBindings = properties.limits.maxVertexInputBindings;
+    o_deviceInfo->limits.maxVertexInputAttributeOffset = properties.limits.maxVertexInputAttributeOffset;
+    o_deviceInfo->limits.maxVertexInputBindingStride = properties.limits.maxVertexInputBindingStride;
+    o_deviceInfo->limits.maxVertexOutputComponents = properties.limits.maxVertexOutputComponents;
+    o_deviceInfo->limits.maxTessellationGenerationLevel = properties.limits.maxTessellationGenerationLevel;
+    o_deviceInfo->limits.maxTessellationPatchSize = properties.limits.maxTessellationPatchSize;
+    o_deviceInfo->limits.maxTessellationControlPerVertexInputComponents = properties.limits.maxTessellationControlPerVertexInputComponents;
+    o_deviceInfo->limits.maxTessellationControlPerVertexOutputComponents = properties.limits.maxTessellationControlPerVertexOutputComponents;
+    o_deviceInfo->limits.maxTessellationControlPerPatchOutputComponents = properties.limits.maxTessellationControlPerPatchOutputComponents;
+    o_deviceInfo->limits.maxTessellationControlTotalOutputComponents = properties.limits.maxTessellationControlTotalOutputComponents;
+    o_deviceInfo->limits.maxTessellationEvaluationInputComponents = properties.limits.maxTessellationEvaluationInputComponents;
+    o_deviceInfo->limits.maxTessellationEvaluationOutputComponents = properties.limits.maxTessellationEvaluationOutputComponents;
+    o_deviceInfo->limits.maxGeometryShaderInvocations = properties.limits.maxGeometryShaderInvocations;
+    o_deviceInfo->limits.maxGeometryInputComponents = properties.limits.maxGeometryInputComponents;
+    o_deviceInfo->limits.maxGeometryOutputComponents = properties.limits.maxGeometryOutputComponents;
+    o_deviceInfo->limits.maxGeometryOutputVertices = properties.limits.maxGeometryOutputVertices;
+    o_deviceInfo->limits.maxGeometryTotalOutputComponents = properties.limits.maxGeometryTotalOutputComponents;
+    o_deviceInfo->limits.maxFragmentInputComponents = properties.limits.maxFragmentInputComponents;
+    o_deviceInfo->limits.maxFragmentOutputAttachments = properties.limits.maxFragmentOutputAttachments;
+    o_deviceInfo->limits.maxFragmentDualSrcAttachments = properties.limits.maxFragmentDualSrcAttachments;
+    o_deviceInfo->limits.maxFragmentCombinedOutputResources = properties.limits.maxFragmentCombinedOutputResources;
+    o_deviceInfo->limits.maxComputeSharedMemorySize = properties.limits.maxComputeSharedMemorySize;
+    //Arrays can't be filled in ig. Not my problem
+    //o_deviceInfo->limits.maxComputeWorkGroupCount = properties.limits.maxComputeWorkGroupCount;
+    o_deviceInfo->limits.maxComputeWorkGroupInvocations = properties.limits.maxComputeWorkGroupInvocations;
+    //o_deviceInfo->limits.maxComputeWorkGroupSize = properties.limits.maxComputeWorkGroupSize;
+    o_deviceInfo->limits.subPixelPrecisionBits = properties.limits.subPixelPrecisionBits;
+    o_deviceInfo->limits.subTexelPrecisionBits = properties.limits.subTexelPrecisionBits;
+    o_deviceInfo->limits.mipmapPrecisionBits = properties.limits.mipmapPrecisionBits;
+    o_deviceInfo->limits.maxDrawIndexedIndexValue = properties.limits.maxDrawIndexedIndexValue;
+    o_deviceInfo->limits.maxDrawIndirectCount = properties.limits.maxDrawIndirectCount;
+    o_deviceInfo->limits.maxSamplerLodBias = properties.limits.maxSamplerLodBias;
+    o_deviceInfo->limits.maxSamplerAnisotropy = properties.limits.maxSamplerAnisotropy;
+    o_deviceInfo->limits.maxViewports = properties.limits.maxViewports;
+    //o_deviceInfo->limits.maxViewportDimensions = properties.limits.maxViewportDimensions;
+    //o_deviceInfo->limits.viewportBoundsRange = properties.limits.viewportBoundsRange;
+    o_deviceInfo->limits.viewportSubPixelBits = properties.limits.viewportSubPixelBits;
+    o_deviceInfo->limits.minMemoryMapAlignment = properties.limits.minMemoryMapAlignment;
+    o_deviceInfo->limits.minTexelBufferOffsetAlignment = properties.limits.minTexelBufferOffsetAlignment;
+    o_deviceInfo->limits.minUniformBufferOffsetAlignment = properties.limits.minUniformBufferOffsetAlignment;
+    o_deviceInfo->limits.minStorageBufferOffsetAlignment = properties.limits.minStorageBufferOffsetAlignment;
+    o_deviceInfo->limits.minTexelOffset = properties.limits.minTexelOffset;
+    o_deviceInfo->limits.maxTexelOffset = properties.limits.maxTexelOffset;
+    o_deviceInfo->limits.minTexelGatherOffset = properties.limits.minTexelGatherOffset;
+    o_deviceInfo->limits.maxTexelGatherOffset = properties.limits.maxTexelGatherOffset;
+    o_deviceInfo->limits.minInterpolationOffset = properties.limits.minInterpolationOffset;
+    o_deviceInfo->limits.maxInterpolationOffset = properties.limits.maxInterpolationOffset;
+    o_deviceInfo->limits.subPixelInterpolationOffsetBits = properties.limits.subPixelInterpolationOffsetBits;
+    o_deviceInfo->limits.maxFramebufferWidth = properties.limits.maxFramebufferWidth;
+    o_deviceInfo->limits.maxFramebufferHeight = properties.limits.maxFramebufferHeight;
+    o_deviceInfo->limits.maxFramebufferLayers = properties.limits.maxFramebufferLayers;
+    o_deviceInfo->limits.framebufferColorSampleCounts = properties.limits.framebufferColorSampleCounts;
+    o_deviceInfo->limits.framebufferDepthSampleCounts = properties.limits.framebufferDepthSampleCounts;
+    o_deviceInfo->limits.framebufferStencilSampleCounts = properties.limits.framebufferStencilSampleCounts;
+    o_deviceInfo->limits.framebufferNoAttachmentsSampleCounts = properties.limits.framebufferNoAttachmentsSampleCounts;
+    o_deviceInfo->limits.maxColorAttachments = properties.limits.maxColorAttachments;
+    o_deviceInfo->limits.sampledImageColorSampleCounts = properties.limits.sampledImageColorSampleCounts;
+    o_deviceInfo->limits.sampledImageIntegerSampleCounts = properties.limits.sampledImageIntegerSampleCounts;
+    o_deviceInfo->limits.sampledImageDepthSampleCounts = properties.limits.sampledImageDepthSampleCounts;
+    o_deviceInfo->limits.sampledImageStencilSampleCounts = properties.limits.sampledImageStencilSampleCounts;
+    o_deviceInfo->limits.storageImageSampleCounts = properties.limits.storageImageSampleCounts;
+    o_deviceInfo->limits.maxSampleMaskWords = properties.limits.maxSampleMaskWords;
+    o_deviceInfo->limits.timestampComputeAndGraphics = properties.limits.timestampComputeAndGraphics;
+    o_deviceInfo->limits.timestampPeriod = properties.limits.timestampPeriod;
+    o_deviceInfo->limits.maxClipDistances = properties.limits.maxClipDistances;
+    o_deviceInfo->limits.maxCullDistances = properties.limits.maxCullDistances;
+    o_deviceInfo->limits.maxCombinedClipAndCullDistances = properties.limits.maxCombinedClipAndCullDistances;
+    o_deviceInfo->limits.discreteQueuePriorities = properties.limits.discreteQueuePriorities;
+    //o_deviceInfo->limits.pointSizeRange = properties.limits.pointSizeRange;
+    //o_deviceInfo->limits.lineWidthRange = properties.limits.lineWidthRange;
+    o_deviceInfo->limits.pointSizeGranularity = properties.limits.pointSizeGranularity;
+    o_deviceInfo->limits.lineWidthGranularity = properties.limits.lineWidthGranularity;
+    o_deviceInfo->limits.strictLines = properties.limits.strictLines;
+    o_deviceInfo->limits.standardSampleLocations = properties.limits.standardSampleLocations;
+    o_deviceInfo->limits.optimalBufferCopyOffsetAlignment = properties.limits.optimalBufferCopyOffsetAlignment;
+    o_deviceInfo->limits.optimalBufferCopyRowPitchAlignment = properties.limits.optimalBufferCopyRowPitchAlignment;
+    o_deviceInfo->limits.nonCoherentAtomSize = properties.limits.nonCoherentAtomSize;
+
+    o_deviceInfo->sparseProperties.residencyStandard2DBlockShape = properties.sparseProperties.residencyStandard2DBlockShape;
+    o_deviceInfo->sparseProperties.residencyStandard2DMultisampleBlockShape = properties.sparseProperties.residencyStandard2DMultisampleBlockShape;
+    o_deviceInfo->sparseProperties.residencyStandard3DBlockShape = properties.sparseProperties.residencyStandard3DBlockShape;
+    o_deviceInfo->sparseProperties.residencyAlignedMipSize = properties.sparseProperties.residencyAlignedMipSize;
+    o_deviceInfo->sparseProperties.residencyNonResidentStrict = properties.sparseProperties.residencyNonResidentStrict;
 }
 
 static void FillPhysicalDeviceFeatures(VkPhysicalDevice device, VKK_PhysicalDeviceFeatures* o_deviceFeatures) {
@@ -1702,7 +1816,7 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
         .addressModeU = (VkSamplerAddressMode)addressMode,   
         .addressModeV = (VkSamplerAddressMode)addressMode,   
         .addressModeW = (VkSamplerAddressMode)addressMode,
-        .anisotropyEnable = VK_FALSE,
+        .anisotropyEnable = VK_TRUE,
         .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable = VK_FALSE,
