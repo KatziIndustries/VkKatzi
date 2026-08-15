@@ -1761,13 +1761,13 @@ static void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, ui
     EndSingleTimeCommands(commandBuffer);
 }
 
-VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height) {
+VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_Format textureFormat) {
 
     if (!vkContext.commandPool) {
         LogError("VKK_InitRenderer has to be called before creating a Texture");
         return NULL;
     }
-
+    
     VkDeviceSize imageSize = (VkDeviceSize)width * height * 4;
 
     VKK_Buffer stagingBuffer = VKK_CreateBuffer(imageSize, VKK_BUFFER_USAGE_STAGING);
@@ -1777,17 +1777,17 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
     texture->width = width;
     texture->height = height;
     
-    if (!CreateImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, &texture->image, &texture->memory)) {
+    if (!CreateImage(width, height, textureFormat, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, &texture->image, &texture->memory)) {
         free(texture);
         VKK_DestroyBuffer(stagingBuffer);
         return NULL;
     }
     
-    TransitionImageLayout(texture->image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    TransitionImageLayout(texture->image, textureFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     
     CopyBufferToImage(stagingBuffer->handle, texture->image, width, height);
     
-    TransitionImageLayout(texture->image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    TransitionImageLayout(texture->image, textureFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     
     VKK_DestroyBuffer(stagingBuffer);
 
@@ -1795,7 +1795,7 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = texture->image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .format = textureFormat,
         .subresourceRange = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .levelCount = 1,
@@ -1833,6 +1833,11 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
     return texture;
 }
 
+void VKK_GetTextureSize(VKK_Texture texture, uint32_t* o_width, uint32_t* o_height) {
+    *o_width = texture->width;
+    *o_height = texture->height;
+}
+
 void VKK_SetTextureSampler(VKK_Texture texture, VKK_SamplerInfo samplerInfo) {
 
     const VkSamplerCreateInfo vkSamplerInfo = {
@@ -1858,7 +1863,7 @@ void VKK_SetTextureSampler(VKK_Texture texture, VKK_SamplerInfo samplerInfo) {
     }
 }
 
-VKK_Texture VKK_CreateTexture(const char* path) {
+VKK_Texture VKK_CreateTexture(const char* path, VKK_Format textureFormat) {
 
     int width, height, channels;
 
@@ -1869,7 +1874,7 @@ VKK_Texture VKK_CreateTexture(const char* path) {
         return NULL;
     }
     
-    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height);
+    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height, textureFormat);
 
     stbi_image_free(pixels);
 

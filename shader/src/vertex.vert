@@ -17,7 +17,7 @@ layout(location = 0) out vec2 fragUV;
 void main() {
     vec2 position = inPosition;
 
-    position.x += timeData.time;
+    position.x += timeData.time - 0.5;
 
     gl_Position = vec4(position, 0.0, 1.0);
     fragUV = inUV;

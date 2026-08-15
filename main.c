@@ -164,8 +164,13 @@ int main() {
     VKK_Uniform timeUniform = VKK_CreateUniform(sizeof(float), VKK_SHADER_STAGE_VERTEX);
     VKK_BindUniform(1, timeUniform);
 
-    VKK_Texture texture = VKK_CreateTexture("textures/github.jpg");
-    VKK_Texture texture2 = VKK_CreateTexture("textures/katzi!.png");
+    VKK_Texture texture = VKK_CreateTexture("textures/github.jpg", VKK_FORMAT_R8G8B8A8_SRGB);
+    VKK_Texture texture2 = VKK_CreateTexture("textures/katzi!.png", VKK_FORMAT_R8G8B8A8_SRGB);
+
+    uint32_t textureWidth, textureHeight;
+    VKK_GetTextureSize(texture2, &textureWidth, &textureHeight);
+
+    printf("Width: %d, Height: %d\n", textureWidth, textureHeight);
 
     VKK_SamplerInfo textureSampler = {
         .addressMode = VKK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
