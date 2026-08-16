@@ -238,7 +238,7 @@ static bool FindQueueFamilies() {
     return false;
 }
 
-static bool CreateLogicalDevice() {
+static bool CreateLogicalDevice(VkPhysicalDeviceFeatures enabledFeatures) {
 
     VkDeviceQueueCreateInfo deviceQueueCreateInfo[2];
 
@@ -271,7 +271,8 @@ static bool CreateLogicalDevice() {
         .queueCreateInfoCount = queuesAmount,
         .enabledExtensionCount = 1,
         .ppEnabledExtensionNames = deviceExtensions,
-        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pEnabledFeatures = &enabledFeatures,
     };
 
     if (vkCreateDevice(vkContext.physicalDevice, &deviceCreateInfo, NULL, &vkContext.logicalDevice) != VK_SUCCESS) {
@@ -1355,7 +1356,7 @@ static void ProcessPendingDeletions() {
     }
 }
 
-static void FillPhysicalDeviceProperties(VkPhysicalDevice device, VKK_PhysicalDeviceProperties* o_deviceInfo) {
+static VkPhysicalDeviceProperties FillPhysicalDeviceProperties(VkPhysicalDevice device, VKK_PhysicalDeviceProperties* o_deviceInfo) {
 
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(device, &properties);
@@ -1481,9 +1482,11 @@ static void FillPhysicalDeviceProperties(VkPhysicalDevice device, VKK_PhysicalDe
     o_deviceInfo->sparseProperties.residencyStandard3DBlockShape = properties.sparseProperties.residencyStandard3DBlockShape;
     o_deviceInfo->sparseProperties.residencyAlignedMipSize = properties.sparseProperties.residencyAlignedMipSize;
     o_deviceInfo->sparseProperties.residencyNonResidentStrict = properties.sparseProperties.residencyNonResidentStrict;
+
+    return properties;
 }
 
-static void FillPhysicalDeviceFeatures(VkPhysicalDevice device, VKK_PhysicalDeviceFeatures* o_deviceFeatures) {
+static VkPhysicalDeviceFeatures FillPhysicalDeviceFeatures(VkPhysicalDevice device, VKK_PhysicalDeviceFeatures* o_deviceFeatures) {
 
     VkPhysicalDeviceFeatures features;
     vkGetPhysicalDeviceFeatures(device, &features);
@@ -1543,6 +1546,8 @@ static void FillPhysicalDeviceFeatures(VkPhysicalDevice device, VKK_PhysicalDevi
     o_deviceFeatures->sparseResidencyAliased = features.sparseResidencyAliased;
     o_deviceFeatures->variableMultisampleRate = features.variableMultisampleRate;
     o_deviceFeatures->inheritedQueries = features.inheritedQueries;
+
+    return features;
 }
 
 VkInstance _VKK_Internal_GetRawInstanceHandle(VKK_Instance instance) {
@@ -1965,14 +1970,14 @@ VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_device
     }
 
     vkContext.physicalDevice = vkContext.availablePhysicalDevices[deviceIndex];
-    FillPhysicalDeviceProperties(vkContext.physicalDevice, &o_deviceInfo->properties);
-    FillPhysicalDeviceFeatures(vkContext.physicalDevice, &o_deviceInfo->features);
+    VkPhysicalDeviceProperties properties = FillPhysicalDeviceProperties(vkContext.physicalDevice, &o_deviceInfo->properties);
+    VkPhysicalDeviceFeatures features = FillPhysicalDeviceFeatures(vkContext.physicalDevice, &o_deviceInfo->features);
 
     if (!FindQueueFamilies()) {
         return VKK_ERROR_NO_SUITABLE_DEVICE;
     }
 
-    if (!CreateLogicalDevice()) {
+    if (!CreateLogicalDevice(features)) {
         return VKK_ERROR_DEVICE_CREATION_FAILED;
     }
 

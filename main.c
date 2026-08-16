@@ -231,7 +231,7 @@ int main() {
                 .cullMode = VKK_CULL_MODE_BACK,
                 .frontFace = VKK_FRONT_FACE_CLOCKWISE,
                 .lineWidth = 1.0f,
-                .polygonMode = VKK_POLYGON_MODE_FILL
+                .polygonMode = VKK_POLYGON_MODE_LINE
             }
         };
 
