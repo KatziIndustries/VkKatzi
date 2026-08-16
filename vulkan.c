@@ -796,6 +796,18 @@ static VkFormat ConvertVertexFormat(VKK_VertexFormat format) {
 
         case VKK_VERTEX_FORMAT_FLOAT4:
             return VK_FORMAT_R32G32B32A32_SFLOAT;
+
+        case VKK_VERTEX_FORMAT_INT:
+            return VK_FORMAT_R32_SINT;
+
+        case VKK_VERTEX_FORMAT_INT2:
+            return VK_FORMAT_R32G32_SINT;
+
+        case VKK_VERTEX_FORMAT_INT3:
+            return VK_FORMAT_R32G32B32_SINT;
+
+        case VKK_VERTEX_FORMAT_INT4:
+            return VK_FORMAT_R32G32B32A32_SINT;
     }
 
     LogError("Vertex format couldn't be converted (this is not supposed to happen wtf)");
