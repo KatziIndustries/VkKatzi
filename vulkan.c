@@ -123,6 +123,7 @@ typedef struct  {
 
     VKK_PushConstantRange pushConstantRange;
     void* pushConstantData;
+    bool pushConstantDataSet;
 } VkContext;
 
 struct VKK_Buffer_T {
@@ -853,7 +854,7 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
 
     const VkDynamicState dynamicStates[] = {
         VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR
+        VK_DYNAMIC_STATE_SCISSOR,
     };
 
     const VkPipelineDynamicStateCreateInfo dynamicState = {
@@ -871,7 +872,7 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
     const VkPipelineRasterizationStateCreateInfo rasterizer = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .cullMode = VK_CULL_MODE_NONE,
         .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .lineWidth = 1.0f   
     };
@@ -909,8 +910,8 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
         .pSetLayouts = &vkContext.descriptorSetLayout,
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &pushConstantRange
+        .pushConstantRangeCount = vkContext.pushConstantRange.size > 0 ? 1 : 0,
+        .pPushConstantRanges = vkContext.pushConstantRange.size > 0 ? &pushConstantRange : NULL
     };
 
     VKK_Pipeline pipeline = malloc(sizeof(struct VKK_Pipeline_T));
@@ -1036,7 +1037,10 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     
     if (vkContext.drawCallIndex > 0) {
         
-        vkCmdPushConstants(commandBuffer, vkContext.drawCalls[0].pipeline->layout, ConvertShaderStage(vkContext.pushConstantRange.shaderStage), vkContext.pushConstantRange.offset, vkContext.pushConstantRange.size, vkContext.pushConstantData);
+        if (vkContext.pushConstantDataSet) {
+            vkCmdPushConstants(commandBuffer, vkContext.drawCalls[0].pipeline->layout, ConvertShaderStage(vkContext.pushConstantRange.shaderStage), vkContext.pushConstantRange.offset, vkContext.pushConstantRange.size, vkContext.pushConstantData);
+        }
+
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkContext.drawCalls[0].pipeline->layout, 0, 1, &vkContext.descriptorSet, 0, NULL);
 
         for (uint32_t i = 0; i < vkContext.drawCallIndex; i++) {
@@ -1552,6 +1556,7 @@ VKK_Surface _VKK_Internal_WrapSurface(VkSurfaceKHR rawSurface) {
 
 void VKK_SetPushConstantData(void* data) {
     vkContext.pushConstantData = data;
+    vkContext.pushConstantDataSet = true;
 }
 
 void VKK_Present(VKK_Color clearColor) {

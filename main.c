@@ -143,7 +143,7 @@ int main() {
     };
     
     VKK_RendererConfig renderConfig = {
-        .pushConstantRange = pushConstantRange,   
+        .pushConstantRange = pushConstantRange
     };
 
     VKK_DescriptorSetLayoutBinding bindings[] = {
@@ -173,7 +173,7 @@ int main() {
     printf("Width: %d, Height: %d\n", textureWidth, textureHeight);
 
     VKK_SamplerInfo textureSampler = {
-        .addressMode = VKK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+        .addressMode = VKK_SAMPLER_ADDRESS_MODE_REPEAT,
         .borderColor = VKK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
         .filter = VKK_SAMPLER_FILTER_LINEAR
     };
