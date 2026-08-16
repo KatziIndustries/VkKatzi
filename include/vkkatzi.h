@@ -366,6 +366,7 @@ typedef enum {
     VKK_ERROR_SYNC_OBJECTS_CREATION_FAILED,
     VKK_ERROR_DESCRIPTOR_POOL_CREATION_FAILED,
     VKK_ERROR_WRONG_EXECUTION_ORDER,
+    VKK_ERROR_DEPTH_RESOURCE_CREATION_FAILED
 } VKK_Result;
 
 typedef struct {
@@ -379,6 +380,9 @@ typedef struct {
     VKK_SamplerFilter filter;
     VKK_SamplerAddressMode addressMode;
     VKK_SamplerBorderColor borderColor;
+
+    bool enableAnisotropy;
+    float maxAnisotropy;
 } VKK_SamplerInfo;
 
 typedef enum {

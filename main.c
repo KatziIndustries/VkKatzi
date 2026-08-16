@@ -27,10 +27,10 @@ typedef struct {
 } InstanceData;
 
 static const TexturedVertex vertices[] = {
-    {{-1.0f, -1.0f}, {0.0f, 0.0f}},
-    {{1.0f, -1.0f}, {5.0f, 0.0f}},
-    {{1.0f, 1.0f}, {5.0f, 5.0f}},
-    {{-1.0f, 1.0f}, {0.0f, 5.0f}},
+    {{-0.5f, -0.5f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f}, {1.0f, 0.0f}},
+    {{0.5f, 0.5f}, {1.0f, 1.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 1.0f}},
 };
 
 static const uint32_t indices[] = {
@@ -175,7 +175,9 @@ int main() {
     VKK_SamplerInfo textureSampler = {
         .addressMode = VKK_SAMPLER_ADDRESS_MODE_REPEAT,
         .borderColor = VKK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
-        .filter = VKK_SAMPLER_FILTER_LINEAR
+        .filter = VKK_SAMPLER_FILTER_LINEAR,
+        .enableAnisotropy = true,
+        .maxAnisotropy = 16.0f
     };
 
     VKK_SetTextureSampler(texture, textureSampler);

@@ -100,6 +100,11 @@ typedef struct  {
 
     VkRenderPass renderPass;
 
+    VkImage depthImage;
+    VkDeviceMemory depthMemory;
+    VkImageView depthImageView;
+    VkFormat depthFormat; 
+
     DrawCall drawCalls[MAX_DRAW_CALLS];
     uint32_t drawCallIndex;
 
@@ -451,41 +456,63 @@ static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
 
 static bool CreateRenderPass() {
 
-    const VkAttachmentDescription colorAttachment = {
-        .format = vkContext.swapchain.swapchainFormat,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+    const VkAttachmentDescription attachments[] = {
+
+        {
+            .format = vkContext.swapchain.swapchainFormat,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        },
+
+        {
+            .format = vkContext.depthFormat,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        }
     };
+
+
 
     const VkAttachmentReference colorAttachmentReference = {
         .attachment = 0,
         .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     };
 
+    const VkAttachmentReference depthAttachmentReference = {
+        .attachment = 1,
+        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+    };
+
     const VkSubpassDescription subpass = {
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &colorAttachmentReference
+        .pColorAttachments = &colorAttachmentReference,
+        .pDepthStencilAttachment = &depthAttachmentReference
     };
 
     const VkSubpassDependency dependency = {
         .srcSubpass = VK_SUBPASS_EXTERNAL,
         .dstSubpass = 0,
-        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
         .srcAccessMask = 0,
-        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
     };
 
     const VkRenderPassCreateInfo renderPassCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = 1,
-        .pAttachments = &colorAttachment,
+        .attachmentCount = 2,
+        .pAttachments = attachments,
         .subpassCount = 1,
         .pSubpasses = &subpass,
         .dependencyCount = 1,
@@ -506,13 +533,14 @@ static bool CreateFrameBuffers(VkSwapchain* swapchain) {
     for (uint32_t i = 0; i < swapchain->imageCount; i++) {
         
         const VkImageView attachments[] = {
-            swapchain->imageViews[i]
+            swapchain->imageViews[i],
+            vkContext.depthImageView
         };
 
         const VkFramebufferCreateInfo framebufferInfo = {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass = vkContext.renderPass,
-            .attachmentCount = 1,
+            .attachmentCount = 2,
             .pAttachments = attachments,
             .width = swapchain->dimensions.width,
             .height = swapchain->dimensions.height,
@@ -923,6 +951,15 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
         return NULL;
     }
 
+    const VkPipelineDepthStencilStateCreateInfo depthStencil = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_TRUE,
+        .depthWriteEnable = VK_TRUE,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE
+    };
+
     const VkGraphicsPipelineCreateInfo pipelineInfo = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .stageCount = 2,
@@ -932,6 +969,7 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
         .pViewportState = &viewportState,
         .pRasterizationState = &rasterizer,
         .pMultisampleState = &multisampling,
+        .pDepthStencilState = &depthStencil,
         .pColorBlendState = &colorBlending,
         .layout = pipeline->layout,
         .renderPass = vkContext.renderPass,
@@ -1000,10 +1038,21 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
         return false;
     }
 
-    const VkClearValue clearColor = {
-        .color = (VkClearColorValue){
+    const VkClearValue clearValues[2] = {
+        {
+            .color = (VkClearColorValue){
             .float32 = {clear.r, clear.g, clear.b, clear.a}
+            },   
+
+
         },
+
+        {
+            .depthStencil = {
+                .depth = 1.0f,
+                .stencil = 0
+            }
+        }
     };
 
     const VkRenderPassBeginInfo renderPassInfo = {
@@ -1014,8 +1063,8 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
             .offset = {0, 0},
             .extent = vkContext.swapchain.dimensions
         },
-        .clearValueCount = 1,
-        .pClearValues = &clearColor
+        .clearValueCount = 2,
+        .pClearValues = clearValues
     };
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -1198,6 +1247,81 @@ VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* binding
     return VKK_SUCCESS;
 }
 
+static bool CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, VkImage* o_image, VkDeviceMemory* o_memory) {
+
+    const VkImageCreateInfo imageInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .extent = { width, height, 1 },
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .format = format,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage = usage,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+    };
+
+    if (vkCreateImage(vkContext.logicalDevice, &imageInfo, NULL, o_image) != VK_SUCCESS) {
+        LogError("Failed to create Image");
+        return false;
+    }
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetImageMemoryRequirements(vkContext.logicalDevice, *o_image, &memoryRequirements);
+
+    uint32_t memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    if (memoryTypeIndex == UINT32_MAX) {
+        return false;
+    }
+
+    const VkMemoryAllocateInfo allocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = memoryRequirements.size,
+        .memoryTypeIndex = memoryTypeIndex   
+    };
+
+    if (vkAllocateMemory(vkContext.logicalDevice, &allocateInfo, NULL, o_memory) != VK_SUCCESS) {
+        LogError("Failed to allocate image memory");
+        return false;
+    }
+
+    vkBindImageMemory(vkContext.logicalDevice, *o_image, *o_memory, 0);
+
+    return true;
+}
+
+static bool CreateDepthResources() {
+    vkContext.depthFormat = VK_FORMAT_D32_SFLOAT;
+
+    VkExtent2D extent = vkContext.swapchain.dimensions;
+
+    if (!CreateImage(extent.width, extent.height, vkContext.depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, &vkContext.depthImage, &vkContext.depthMemory)) {
+        return false;
+    }
+
+    VkImageViewCreateInfo imageViewInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = vkContext.depthImage,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = vkContext.depthFormat,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1   
+        },
+    };
+
+    if (vkCreateImageView(vkContext.logicalDevice, &imageViewInfo, NULL, &vkContext.depthImageView) != VK_SUCCESS) {
+        return false;
+    }
+
+    return true;
+}
 void VKK_BindTexture(uint32_t binding, VKK_Texture texture) {
 
     const VkDescriptorImageInfo imageInfo = {
@@ -1238,7 +1362,25 @@ static bool RecreateSwapchain() {
 
     CleanupSwapchain();
 
+    if (vkContext.depthImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(vkContext.logicalDevice, vkContext.depthImageView, NULL);
+    }
+
+    if (vkContext.depthImage != VK_NULL_HANDLE) {
+        vkDestroyImage(vkContext.logicalDevice, vkContext.depthImage, NULL);
+    }
+
+    if (vkContext.depthMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(vkContext.logicalDevice, vkContext.depthMemory, NULL);
+    }
+
+
+
     if (!CreateVkSwapchain(&vkContext.swapchain)) {
+        return false;
+    }
+
+    if (!CreateDepthResources()) {
         return false;
     }
 
@@ -1626,52 +1768,6 @@ void VKK_Present(VKK_Color clearColor) {
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-static bool CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, VkImage* o_image, VkDeviceMemory* o_memory) {
-
-    const VkImageCreateInfo imageInfo = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .extent = { width, height, 1 },
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .format = format,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage = usage,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-
-    if (vkCreateImage(vkContext.logicalDevice, &imageInfo, NULL, o_image) != VK_SUCCESS) {
-        LogError("Failed to create Image");
-        return false;
-    }
-
-    VkMemoryRequirements memoryRequirements;
-    vkGetImageMemoryRequirements(vkContext.logicalDevice, *o_image, &memoryRequirements);
-
-    uint32_t memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    if (memoryTypeIndex == UINT32_MAX) {
-        return false;
-    }
-
-    const VkMemoryAllocateInfo allocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memoryRequirements.size,
-        .memoryTypeIndex = memoryTypeIndex   
-    };
-
-    if (vkAllocateMemory(vkContext.logicalDevice, &allocateInfo, NULL, o_memory) != VK_SUCCESS) {
-        LogError("Failed to allocate image memory");
-        return false;
-    }
-
-    vkBindImageMemory(vkContext.logicalDevice, *o_image, *o_memory, 0);
-
-    return true;
-}
-
 static VkCommandBuffer BeginSingleTimeCommands() {
 
     const VkCommandBufferAllocateInfo allocateInfo = {
@@ -1858,7 +1954,8 @@ void VKK_SetTextureSampler(VKK_Texture texture, VKK_SamplerInfo samplerInfo) {
         .addressModeU = (VkSamplerAddressMode)samplerInfo.addressMode,
         .addressModeV = (VkSamplerAddressMode)samplerInfo.addressMode,
         .addressModeW = (VkSamplerAddressMode)samplerInfo.addressMode,
-        .anisotropyEnable = VK_FALSE,
+        .anisotropyEnable = samplerInfo.enableAnisotropy,
+        .maxAnisotropy = samplerInfo.maxAnisotropy == 0.0f ? 1.0f : samplerInfo.maxAnisotropy,
         .borderColor = (VkBorderColor)samplerInfo.borderColor,
         .unnormalizedCoordinates = VK_FALSE,
         .compareEnable = VK_FALSE,
@@ -1985,6 +2082,10 @@ VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_device
         return VKK_ERROR_SWAPCHAIN_CREATION_FAILED;
     }
 
+    if (!CreateDepthResources()) {
+        return VKK_ERROR_DEPTH_RESOURCE_CREATION_FAILED;
+    }
+
     if (!CreateRenderPass()) {
         return VKK_ERROR_RENDER_PASS_CREATION_FAILED;
     }
@@ -2052,6 +2153,15 @@ void VKK_End() {
     }
 
     free(vkContext.renderFinishedSemaphores);
+
+    if (vkContext.depthImageView != VK_NULL_HANDLE)
+        vkDestroyImageView(vkContext.logicalDevice, vkContext.depthImageView, NULL);
+
+    if (vkContext.depthImage != VK_NULL_HANDLE)
+        vkDestroyImage(vkContext.logicalDevice, vkContext.depthImage, NULL);
+
+    if (vkContext.depthMemory != VK_NULL_HANDLE)
+        vkFreeMemory(vkContext.logicalDevice, vkContext.depthMemory, NULL);
 
     vkDestroyCommandPool(vkContext.logicalDevice, vkContext.commandPool, NULL);
     free(vkContext.commandBuffers);
