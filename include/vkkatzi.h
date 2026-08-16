@@ -624,8 +624,8 @@ void VKK_BindUniform(uint32_t binding, VKK_Uniform uniform);
 void VKK_WriteUniform(VKK_Uniform uniform, const void* data, size_t size, size_t offset);
 void VKK_DestroyUniform(VKK_Uniform uniform);
 
-void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount);
-void VKK_DrawInstanced(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount, VKK_Buffer instanceBuffer, uint32_t instanceCount);
+void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, VKK_Buffer indexBuffer, uint32_t indexCount);
+void VKK_DrawInstanced(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, VKK_Buffer indexBuffer, uint32_t indexCount, VKK_Buffer instanceBuffer, uint32_t instanceCount);
 
 void VKK_SetPushConstantData(void* data);
 

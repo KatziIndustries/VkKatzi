@@ -313,8 +313,8 @@ int main() {
 
         VKK_WriteUniform(timeUniform, &elapsedTime, sizeof(float), 0);
 
-        VKK_Draw(trianglePipeline, vertexBuffer, 4, indexBuffer, 6);
-        VKK_DrawInstanced(instancedPipeline, instanceVertexBuffer, 3, instanceIndexBuffer, 3, instanceBuffer, 3);
+        VKK_Draw(trianglePipeline, vertexBuffer, indexBuffer, 6);
+        VKK_DrawInstanced(instancedPipeline, instanceVertexBuffer, instanceIndexBuffer, 3, instanceBuffer, 3);
     
         VKK_Color clearColor = {
             .r = 0.0f,

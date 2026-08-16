@@ -58,7 +58,6 @@ typedef struct {
 
 typedef struct {
     VkBuffer vertexBuffer;
-    uint32_t vertexCount;
     VkBuffer indexBuffer;
     uint32_t indexCount;
     VKK_Pipeline pipeline;
@@ -1049,7 +1048,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
 
         {
             .depthStencil = {
-                .depth = 1.0f,
+                .depth = 1.0,
                 .stencil = 0
             }
         }
@@ -1128,7 +1127,7 @@ static bool RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageInd
     return true;
 }
 
-void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount) {
+void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, VKK_Buffer indexBuffer, uint32_t indexCount) {
 
     if (vkContext.drawCallIndex >= MAX_DRAW_CALLS) {
         fprintf(stderr, "[VKK][ERROR]: Max draw calls (%d) in frame reached, dropping draw call\n", MAX_DRAW_CALLS);
@@ -1138,7 +1137,6 @@ void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCou
     DrawCall drawCall = {
         .vertexBuffer = vertexBuffer->handle,
         .indexBuffer = indexBuffer->handle,
-        .vertexCount = vertexCount,
         .indexCount = indexCount,
         .pipeline = pipeline,
         .instanceBuffer = VK_NULL_HANDLE,
@@ -1148,7 +1146,7 @@ void VKK_Draw(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCou
     vkContext.drawCalls[vkContext.drawCallIndex++] = drawCall;
 }
 
-void VKK_DrawInstanced(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t vertexCount, VKK_Buffer indexBuffer, uint32_t indexCount, VKK_Buffer instanceBuffer, uint32_t instanceCount) {
+void VKK_DrawInstanced(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, VKK_Buffer indexBuffer, uint32_t indexCount, VKK_Buffer instanceBuffer, uint32_t instanceCount) {
 
     if (vkContext.drawCallIndex >= MAX_DRAW_CALLS) {
         fprintf(stderr, "[VKK][ERROR]: Max draw calls (%d) in frame reached, dropping draw call\n", MAX_DRAW_CALLS);
@@ -1158,7 +1156,6 @@ void VKK_DrawInstanced(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, uint32_t 
     DrawCall drawCall = {
         .vertexBuffer = vertexBuffer->handle,
         .indexBuffer = indexBuffer->handle,
-        .vertexCount = vertexCount,
         .indexCount = indexCount,
         .pipeline = pipeline,
         .instanceBuffer = instanceBuffer ? instanceBuffer->handle : VK_NULL_HANDLE,
