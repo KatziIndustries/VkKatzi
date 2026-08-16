@@ -871,11 +871,12 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
 
     const VkPipelineRasterizationStateCreateInfo rasterizer = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_NONE,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
-        .lineWidth = 1.0f   
+        .polygonMode = desc.rasterizer.polygonMode,
+        .cullMode = desc.rasterizer.cullMode,
+        .frontFace = desc.rasterizer.frontFace,
+        .lineWidth = desc.rasterizer.lineWidth
     };
+
 
     const VkPipelineMultisampleStateCreateInfo multisampling = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,

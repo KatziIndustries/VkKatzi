@@ -195,7 +195,13 @@ int main() {
             .fragmentShaderPath = "shader/compiled/frag.spv",
             .attributes = attributes,
             .attributeCount = 2,
-            .vertexStride = sizeof(TexturedVertex)
+            .vertexStride = sizeof(TexturedVertex),
+            .rasterizer = {
+                .cullMode = VKK_CULL_MODE_BACK,
+                .frontFace = VKK_FRONT_FACE_CLOCKWISE,
+                .lineWidth = 1.0f,
+                .polygonMode = VKK_POLYGON_MODE_FILL
+            }
         };
 
         trianglePipeline = VKK_CreatePipeline(pipelineDescription);
@@ -220,7 +226,13 @@ int main() {
             .attributeCount = 1,
             .instanceStride = sizeof(InstanceData),
             .instanceAttributes = instanceAttributes,
-            .instanceAttributesCount = 2
+            .instanceAttributesCount = 2,
+            .rasterizer = {
+                .cullMode = VKK_CULL_MODE_BACK,
+                .frontFace = VKK_FRONT_FACE_CLOCKWISE,
+                .lineWidth = 1.0f,
+                .polygonMode = VKK_POLYGON_MODE_FILL
+            }
         };
 
         instancedPipeline = VKK_CreatePipeline(desc);

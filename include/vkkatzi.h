@@ -46,6 +46,32 @@ typedef struct {
     uint32_t offset;
 } VKK_VertexAttribute;
 
+typedef enum {
+    VKK_POLYGON_MODE_FILL = 0,
+    VKK_POLYGON_MODE_LINE = 1,
+    VKK_POLYGON_MODE_POINT = 2,
+    VKK_POLYGON_MODE_FILL_RECTANGLE_NV = 1000153000,
+} VKK_PolygonMode;
+
+typedef enum {
+    VKK_CULL_MODE_NONE = 0,
+    VKK_CULL_MODE_FRONT = 0x00000001,
+    VKK_CULL_MODE_BACK = 0x00000002,
+    VKK_CULL_MODE_FRONT_AND_BACK = 0x00000003,
+} VKK_CullMode;
+
+typedef enum {
+    VKK_FRONT_FACE_COUNTER_CLOCKWISE = 0,
+    VKK_FRONT_FACE_CLOCKWISE = 1,
+} VKK_FrontFace;
+
+typedef struct {
+    VKK_PolygonMode polygonMode;
+    VKK_CullMode cullMode;
+    VKK_FrontFace frontFace;
+    float lineWidth;
+} VKK_Rasterizer;
+
 typedef struct {
     char* vertexShaderPath;
     char* fragmentShaderPath;
@@ -57,6 +83,8 @@ typedef struct {
     uint32_t instanceStride;
     VKK_VertexAttribute* instanceAttributes;
     uint32_t instanceAttributesCount;
+
+    VKK_Rasterizer rasterizer;
 } VKK_PipelineDescription;
 
 typedef enum {
