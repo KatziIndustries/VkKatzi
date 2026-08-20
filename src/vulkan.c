@@ -6,12 +6,12 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
-#include "include/shared.h"
-#include "include/vkkatzi.h"
-#include "include/logger.h"
+#include "../include/shared.h"
+#include "../include/vkkatzi.h"
+#include "../include/logger.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "include/stb_image.h"
+#include "../include/stb_image.h"
 
 VkPresentModeKHR PREFERRED_PRESENT_MODE;
 uint32_t DESIRED_IMAGE_COUNT = 0;
