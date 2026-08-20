@@ -966,7 +966,7 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         .depthTestEnable = desc.enableDepthTesting,
         .depthWriteEnable = VK_TRUE,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthCompareOp = desc.depthCompareOp,
         .depthBoundsTestEnable = VK_FALSE,
         .stencilTestEnable = VK_FALSE
     };

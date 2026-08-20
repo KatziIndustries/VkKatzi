@@ -236,7 +236,7 @@ int main() {
                 .lineWidth = 1.0f,
                 .polygonMode = VKK_POLYGON_MODE_LINE
             },
-            .enableDepthTesting = false
+            .enableDepthTesting = false,
         };
 
         instancedPipeline = VKK_CreatePipeline(desc);

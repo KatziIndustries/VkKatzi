@@ -77,6 +77,17 @@ typedef struct {
     float lineWidth;
 } VKK_Rasterizer;
 
+typedef enum {
+    VKK_COMPARE_OP_NEVER = 0,
+    VKK_COMPARE_OP_LESS = 1,
+    VKK_COMPARE_OP_EQUAL = 2,
+    VKK_COMPARE_OP_LESS_OR_EQUAL = 3,
+    VKK_COMPARE_OP_GREATER = 4,
+    VKK_COMPARE_OP_NOT_EQUAL = 5,
+    VKK_COMPARE_OP_GREATER_OR_EQUAL = 6,
+    VKK_COMPARE_OP_ALWAYS = 7,
+} VKK_CompareOp;
+
 typedef struct {
     char* vertexShaderPath;
     char* fragmentShaderPath;
@@ -92,6 +103,7 @@ typedef struct {
     VKK_Rasterizer rasterizer;
 
     bool enableDepthTesting;
+    VKK_CompareOp depthCompareOp;
 } VKK_PipelineDescription;
 
 typedef enum {
