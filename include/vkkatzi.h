@@ -90,6 +90,8 @@ typedef struct {
     uint32_t instanceAttributesCount;
 
     VKK_Rasterizer rasterizer;
+
+    bool enableDepthTesting;
 } VKK_PipelineDescription;
 
 typedef enum {

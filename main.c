@@ -203,7 +203,8 @@ int main() {
                 .frontFace = VKK_FRONT_FACE_CLOCKWISE,
                 .lineWidth = 1.0f,
                 .polygonMode = VKK_POLYGON_MODE_FILL
-            }
+            },
+            .enableDepthTesting = false
         };
 
         trianglePipeline = VKK_CreatePipeline(pipelineDescription);
@@ -234,7 +235,8 @@ int main() {
                 .frontFace = VKK_FRONT_FACE_CLOCKWISE,
                 .lineWidth = 1.0f,
                 .polygonMode = VKK_POLYGON_MODE_LINE
-            }
+            },
+            .enableDepthTesting = false
         };
 
         instancedPipeline = VKK_CreatePipeline(desc);

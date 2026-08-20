@@ -810,7 +810,7 @@ static VkFormat ConvertVertexFormat(VKK_VertexFormat format) {
             return VK_FORMAT_R32G32B32A32_SINT;
     }
 
-    LogError("Vertex format couldn't be converted (this is not supposed to happen wtf)");
+    LogError("Vertex format couldn't be converted (this is not supposed to happen wtf did you do?)");
     return VK_FORMAT_R32_SFLOAT;
 }
 
@@ -964,7 +964,7 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
 
     const VkPipelineDepthStencilStateCreateInfo depthStencil = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable = VK_TRUE,
+        .depthTestEnable = desc.enableDepthTesting,
         .depthWriteEnable = VK_TRUE,
         .depthCompareOp = VK_COMPARE_OP_LESS,
         .depthBoundsTestEnable = VK_FALSE,
