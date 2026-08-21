@@ -622,11 +622,26 @@ typedef struct {
     VKK_ShaderStage shaderStage;
 } VKK_DescriptorSetLayoutBinding;
 
+/*
+* Initializes the Vulkan instance.
+*/
 VKK_Result VKK_InitInstance(VKK_Config config, VKK_InstanceInfo* o_instanceInfo);
 
+/*
+* Enumerates over all physical devices and returns the info about each one.
+*/
 uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo* o_devices, uint32_t maxDevices);
+
+/*
+* Initializes the specified device.
+* Has to be called after VKK_InitInstance and VKK_EnumeratePhysicalDevices.
+*/
 VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_deviceInfo);
 
+/*
+* Initializes the renderer.
+* Has to be called after VKK_InitDevice
+*/
 VKK_Result VKK_InitRenderer(VKK_RendererConfig rendererConfig);
 void VKK_End(void);
 
