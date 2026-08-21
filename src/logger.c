@@ -1,7 +1,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "include/shared.h"
+#include "../include/shared.h"
 
 void LogError(const char* message)  {
     fprintf(stderr, "[VKK][ERROR]: %s\n", message);
