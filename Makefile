@@ -21,7 +21,7 @@ $(LIB_BUILD):
 
 $(LIB_SDL3_BUILD): $(LIB_BUILD)
 	mkdir -p build
-	$(CC) $(CFLAGS) SDL3/* -lSDL3 -o $@
+	$(CC) $(CFLAGS) SDL3/* src/internal.c -lSDL3 -lvkkatzi -o $@
 
 install: $(LIB_BUILD) $(LIB_SDL3_BUILD)
 	sudo cp $(LIB_BUILD) /usr/lib/$(LIB_VERSIONED)
