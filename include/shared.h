@@ -14,6 +14,7 @@ extern "C" {
 static bool logWarnings;
 
 uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+VkShaderStageFlags ConvertShaderStage(VKK_ShaderStage shaderStage);
 
 #ifdef __cplusplus
 }

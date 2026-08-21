@@ -18,3 +18,18 @@ uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
     LogError("Failed to find suitable memory type");
     return UINT32_MAX;
 }
+
+VkShaderStageFlags ConvertShaderStage(VKK_ShaderStage shaderStage) {
+    switch (shaderStage) {
+        case VKK_SHADER_STAGE_VERTEX:
+            return VK_SHADER_STAGE_VERTEX_BIT;
+
+        case VKK_SHADER_STAGE_FRAGMENT:
+            return VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        case VKK_SHADER_STAGE_ALL:
+            return VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+
+    return VK_SHADER_STAGE_VERTEX_BIT;
+}
