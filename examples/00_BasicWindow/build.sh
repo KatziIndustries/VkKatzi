@@ -1,0 +1,1 @@
+gcc main.c -lvkkatzi -lvkkatzi_SDL3 -lSDL3 -Wall -Wextra -o main
