@@ -101,7 +101,7 @@ void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t of
     }
 
     if (offset + size > buffer->size)  {
-        fprintf(stderr, "[VKK][ERROR]: VKK_WriteBuffer: write out of bounds (offset %zu + size %zu > buffer size %llu)\n", offset, size, (unsigned long int)buffer->size);
+        fprintf(stderr, "[VKK][ERROR]: VKK_WriteBuffer: write out of bounds (offset %zu + size %zu > buffer size %lu)\n", offset, size, (unsigned long int)buffer->size);
         return;
     }
 

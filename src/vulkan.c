@@ -199,32 +199,6 @@ VkExtent2D GetVkSwapchainExtent(const VkSurfaceCapabilitiesKHR* capabilities, ui
     return extent;
 }
 
-static char* PresentModeToString(VKK_PresentMode presentMode) {
-
-    switch (presentMode) {
-        case VKK_PRESENT_MODE_FIFO:
-            return "FIFO";
-
-        case VKK_PRESENT_MODE_FIFO_LATEST_READY:
-            return "FIFO_Latest_Ready";
-        
-        case VKK_PRESENT_MODE_FIFO_RELAXED:
-            return "FIFO_Relaxed";
-
-        case VKK_PRESENT_MODE_IMMEDIATE:
-            return "Immediate";
-
-        case VKK_PRESENT_MODE_MAILBOX:
-            return "Mailbox";
-
-        case VKK_PRESENT_MODE_SHARED_CONTINOUS_REFRESH:
-            return "Shared_Continuous_Refresh";
-
-        case VKK_PRESENT_MODE_SHARED_DEMAND_REFRESH:
-            return "Shared_Demand_Refresh";
-    }
-}
-
 static bool CreateVkSwapchain(VkSwapchain* o_swapchain) {
 
     VkSwapchainInfo info;
@@ -526,28 +500,6 @@ static VkFormat ConvertVertexFormat(VKK_VertexFormat format) {
     return VK_FORMAT_R32_SFLOAT;
 }
 
-static void QueueBufferDeletion(VKK_Buffer buffer) {
-
-    PendingDeletion deletion = {
-        .deletionType = DELETION_BUFFER,
-        .framesUntilDeletion = MAX_FRAMES_IN_FLIGHT,
-        .buffer = buffer,
-    };
-
-    vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
-}
-
-static void QueueTextureDeletion(VKK_Texture texture) {
-
-    PendingDeletion deletion = {
-        .deletionType = DELETION_TEXTURE,
-        .framesUntilDeletion = MAX_FRAMES_IN_FLIGHT,
-        .texture = texture
-    };
-
-    vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
-}
-
 VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
 
     VkShaderModule vertModule = CreateShaderModule(desc.vertexShaderPath);
@@ -645,9 +597,9 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
 
     const VkPipelineRasterizationStateCreateInfo rasterizer = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .polygonMode = desc.rasterizer.polygonMode,
-        .cullMode = desc.rasterizer.cullMode,
-        .frontFace = desc.rasterizer.frontFace,
+        .polygonMode = (VkPolygonMode)desc.rasterizer.polygonMode,
+        .cullMode = (VkCullModeFlagBits)desc.rasterizer.cullMode,
+        .frontFace = (VkFrontFace)desc.rasterizer.frontFace,
         .lineWidth = desc.rasterizer.lineWidth
     };
 
@@ -700,7 +652,7 @@ VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         .depthTestEnable = desc.enableDepthTesting,
         .depthWriteEnable = VK_TRUE,
-        .depthCompareOp = desc.depthCompareOp,
+        .depthCompareOp = (VkCompareOp)desc.depthCompareOp,
         .depthBoundsTestEnable = VK_FALSE,
         .stencilTestEnable = VK_FALSE
     };
@@ -1094,7 +1046,7 @@ static VkPhysicalDeviceProperties FillPhysicalDeviceProperties(VkPhysicalDevice 
     o_deviceInfo->driverVersion = properties.driverVersion;
     o_deviceInfo->vendorID = properties.vendorID;
     o_deviceInfo->deviceID = properties.deviceID;
-    o_deviceInfo->deviceType = properties.deviceType;
+    o_deviceInfo->deviceType = (VKK_PhysicalDeviceType)properties.deviceType;
 
     // I don't know if this is being filled in correctly and I will not check if it is
     o_deviceInfo->limits.maxImageDimension1D = properties.limits.maxImageDimension1D;
@@ -1377,7 +1329,7 @@ VKK_Result VKK_InitInstance(VKK_Config config, VKK_InstanceInfo* o_instanceInfo)
 
     logWarnings = config.logWarnings;
 
-    PREFERRED_PRESENT_MODE = config.presentMode;
+    PREFERRED_PRESENT_MODE = (VkPresentModeKHR)config.presentMode;
     DESIRED_IMAGE_COUNT = config.imageBufferSize;
 
     if (config.enableValidationLayers) {
@@ -1408,7 +1360,7 @@ VKK_Result VKK_InitDevice(uint32_t deviceIndex, VKK_PhysicalDeviceInfo* o_device
     }
 
     vkContext.physicalDevice = vkContext.availablePhysicalDevices[deviceIndex];
-    VkPhysicalDeviceProperties properties = FillPhysicalDeviceProperties(vkContext.physicalDevice, &o_deviceInfo->properties);
+    FillPhysicalDeviceProperties(vkContext.physicalDevice, &o_deviceInfo->properties);
     VkPhysicalDeviceFeatures features = FillPhysicalDeviceFeatures(vkContext.physicalDevice, &o_deviceInfo->features);
 
     if (!FindQueueFamilies()) {

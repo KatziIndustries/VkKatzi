@@ -1,7 +1,10 @@
 #include "../include/vkcontext.h"
 #include "../include/logger.h"
+#include "../include/shared.h"
 
 #include <vulkan/vulkan.h>
+
+bool logWarnings;
 
 uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
 

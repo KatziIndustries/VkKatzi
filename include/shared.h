@@ -11,10 +11,10 @@ extern "C" {
 #include "vkcontext.h"
 #include "logger.h"
 
-static bool logWarnings;
-
 uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 VkShaderStageFlags ConvertShaderStage(VKK_ShaderStage shaderStage);
+
+extern bool logWarnings;
 
 #ifdef __cplusplus
 }

@@ -91,7 +91,8 @@ static void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, ui
     EndSingleTimeCommands(commandBuffer);
 }
 
-static void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+static void TransitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
+
     VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
 
     VkImageMemoryBarrier barrier = {
@@ -195,17 +196,17 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
     texture->width = width;
     texture->height = height;
     
-    if (!CreateImage(width, height, textureFormat, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, &texture->image, &texture->memory)) {
+    if (!CreateImage(width, height, (VkFormat)textureFormat, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, &texture->image, &texture->memory)) {
         free(texture);
         VKK_DestroyBuffer(stagingBuffer);
         return NULL;
     }
     
-    TransitionImageLayout(texture->image, textureFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    TransitionImageLayout(texture->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     
     CopyBufferToImage(stagingBuffer->handle, texture->image, width, height);
     
-    TransitionImageLayout(texture->image, textureFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    TransitionImageLayout(texture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     
     VKK_DestroyBuffer(stagingBuffer);
 
@@ -213,7 +214,7 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = texture->image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = textureFormat,
+        .format = (VkFormat)textureFormat,
         .subresourceRange = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .levelCount = 1,
