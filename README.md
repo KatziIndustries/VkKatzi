@@ -16,11 +16,11 @@ Prerequisites:
 ```
 git clone https://github.com/KatziIndustries/VkKatzi.git
 cd VkKatzi
-chmod +x publish.sh
-./publish.sh
+make install
 ```
 
-The final library will be located in the build directory
+The final library will be located in the build directory and also automatically copied to /usr/lib.
+If you don't want the library to be copied just run make instead of make install
 
 ## Windows
 
