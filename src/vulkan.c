@@ -8,10 +8,11 @@
 
 #include "../include/shared.h"
 #include "../include/vkkatzi.h"
+#include "../include/vkcontext.h"
 #include "../include/logger.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "../include/stb_image.h"
+#include "../include/vkkatzi_internal.h"
+#include "../include/buffer.h"
+#include "../include/texture.h"
 
 VkPresentModeKHR PREFERRED_PRESENT_MODE;
 uint32_t DESIRED_IMAGE_COUNT = 0;
@@ -24,120 +25,6 @@ typedef struct {
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
 } VkSwapchainInfo;
 
-typedef struct {
-    VkSwapchainKHR swapchainHandle;
-
-    VkImageView* imageViews;
-    VkImage* images;
-    VkFramebuffer* framebuffers;
-    uint32_t imageCount;
-
-    VkExtent2D dimensions;
-
-    VkFormat swapchainFormat;
-    VkSurfaceFormatKHR surfaceFormat;
-    VkPresentModeKHR surfacePresentMode;
-} VkSwapchain;
-
-#define MAX_PENDING_DELETIONS 4096
-
-typedef enum {
-    DELETION_BUFFER,
-    DELETION_TEXTURE
-} DeletionType;
-
-typedef struct {
-    DeletionType deletionType;
-    uint32_t framesUntilDeletion;
-
-    union {
-        VKK_Buffer buffer;
-        VKK_Texture texture;
-    };
-} PendingDeletion;
-
-typedef struct {
-    VkBuffer vertexBuffer;
-    VkBuffer indexBuffer;
-    uint32_t indexCount;
-    VKK_Pipeline pipeline;
-
-    VkBuffer instanceBuffer;
-    uint32_t instanceCount;
-} DrawCall;
-
-#define MAX_FRAMES_IN_FLIGHT 2
-#define MAX_DRAW_CALLS 4096
-#define MAX_UNIFORMS 32
-#define MAX_TEXTURES 64
-
-typedef struct  {
-    VkInstance instance;
-    const char** layers;
-    const char** extensions;
-    uint32_t layersAmount;
-    uint32_t extensionsAmount;
-
-    VkSurfaceKHR surface;
-
-    uint32_t windowWidth;
-    uint32_t windowHeight;
-
-    VkPhysicalDevice availablePhysicalDevices[16];
-    uint32_t availableDeviceCount;
-    VkPhysicalDevice physicalDevice;
-
-    VkDevice logicalDevice;
-
-    int32_t graphicsQueueFamilyIndex;
-    int32_t presentQueueFamilyIndex;
-
-    VkQueue graphicsQueue;
-    VkQueue presentQueue;
-
-    VkSwapchain swapchain;
-
-    VkRenderPass renderPass;
-
-    VkImage depthImage;
-    VkDeviceMemory depthMemory;
-    VkImageView depthImageView;
-    VkFormat depthFormat; 
-
-    DrawCall drawCalls[MAX_DRAW_CALLS];
-    uint32_t drawCallIndex;
-
-    VkDescriptorSetLayout descriptorSetLayout;
-    VkDescriptorPool descriptorPool;
-    VkDescriptorSet descriptorSet;
-
-    VkCommandPool commandPool;
-    VkCommandBuffer* commandBuffers;
-
-    VkSemaphore imageAvailableSemaphores[MAX_FRAMES_IN_FLIGHT];
-    VkSemaphore* renderFinishedSemaphores;
-    VkFence inFlightFences[MAX_FRAMES_IN_FLIGHT];
-
-    uint32_t currentFrame;
-
-    PendingDeletion pendingDeletions[MAX_PENDING_DELETIONS];
-    uint32_t pendingDeletionCount;
-
-    bool pipelineFinalized;
-
-    VKK_PushConstantRange pushConstantRange;
-    void* pushConstantData;
-    bool pushConstantDataSet;
-} VkContext;
-
-struct VKK_Buffer_T {
-    VkBuffer handle;
-    VkDeviceMemory memory;
-    VkDeviceSize size;
-    bool isMapped;
-    void* mappedPtr;
-};
-
 struct VKK_Uniform_T {
     VKK_Buffer buffer;
     VkShaderStageFlags stageFlags;
@@ -147,24 +34,6 @@ struct VKK_Pipeline_T {
     VkPipeline handle;
     VkPipelineLayout layout;
 };
-
-struct VKK_Instance_T {
-    VkInstance handle;
-};
-
-struct VKK_Surface_T {
-    VkSurfaceKHR handle;
-};
-
-struct VKK_Texture_T {
-    VkImage image;
-    VkDeviceMemory memory;
-    VkImageView imageView;
-    VkSampler sampler;
-    uint32_t width, height;
-};
-
-static VkContext vkContext;
 
 static bool CreateInstance(VKK_InstanceInfo* instanceInfo) {
 
@@ -630,35 +499,6 @@ static VkShaderModule CreateShaderModule(const char* path) {
     return shaderModule;
 }
 
-static void GetBufferUsageFlags(VKK_BufferUsage usage, VkBufferUsageFlags* o_usageFlags, VkMemoryPropertyFlags* o_memoryFlags) {
-    switch (usage) {
-        case VKK_BUFFER_USAGE_VERTEX:
-            *o_usageFlags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-            break;
-
-        case VKK_BUFFER_USAGE_INDEX:
-            *o_usageFlags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-            break;
-
-        case VKK_BUFFER_USAGE_UNIFORM:
-            *o_usageFlags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-            break;
-
-        case VKK_BUFFER_USAGE_STORAGE:
-            *o_usageFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-            break;
-
-        case VKK_BUFFER_USAGE_STAGING:
-            *o_usageFlags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-            *o_memoryFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-            break;
-    }
-}
-
 static void QueueBufferDeletion(VKK_Buffer buffer) {
 
     PendingDeletion deletion = {
@@ -681,43 +521,8 @@ static void QueueTextureDeletion(VKK_Texture texture) {
     vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
 }
 
-void VKK_DestroyBuffer(VKK_Buffer buffer) {
-    if (!buffer)
-        return;
-
-    if (vkContext.pendingDeletionCount >= MAX_PENDING_DELETIONS) {
-        LogError("VKK_DestroyBuffer: Max pending deletions exceeded");
-        return;
-    }
-
-    PendingDeletion deletion = {
-        .buffer = buffer,
-        .framesUntilDeletion = MAX_FRAMES_IN_FLIGHT
-    };
-
-    vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
-}
-
 void VKK_DestroyUniform(VKK_Uniform uniform) {
     VKK_DestroyBuffer(uniform->buffer);
-}
-
-void VKK_WriteBuffer(VKK_Buffer buffer, const void* data, size_t size, size_t offset) {
-
-    if (!buffer) {
-        LogError("VKK_WriteBuffer: buffer is NULL");
-        return;
-    }
-
-    if (offset + size > buffer->size)  {
-        fprintf(stderr, "[VKK][ERROR]: VKK_WriteBuffer: write out of bounds (offset %zu + size %zu > buffer size %llu)\n", offset, size, (unsigned long int)buffer->size);
-        return;
-    }
-
-    void* mapped;
-    vkMapMemory(vkContext.logicalDevice, buffer->memory, offset, size, 0, &mapped);
-    memcpy(mapped, data, size);
-    vkUnmapMemory(vkContext.logicalDevice, buffer->memory);
 }
 
 static VkShaderStageFlags ConvertShaderStage(VKK_ShaderStage shaderStage) {
@@ -1177,59 +982,6 @@ void VKK_DrawInstanced(VKK_Pipeline pipeline, VKK_Buffer vertexBuffer, VKK_Buffe
     vkContext.drawCalls[vkContext.drawCallIndex++] = drawCall;
 }
 
-static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-    VkPhysicalDeviceMemoryProperties memoryProperties;
-    vkGetPhysicalDeviceMemoryProperties(vkContext.physicalDevice, &memoryProperties);
-
-    for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++) {
-        if ((typeFilter & (1 << i)) && 
-            (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-                return i;
-            }
-    }
-
-    LogError("Failed to find suitable memory type");
-    return UINT32_MAX;
-}
-
-static bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* o_buffer, VkDeviceMemory* o_bufferMemory) {
-    const VkBufferCreateInfo bufferInfo = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = size,
-        .usage = usage,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-
-    if (vkCreateBuffer(vkContext.logicalDevice, &bufferInfo, NULL, o_buffer) != VK_SUCCESS) {
-        LogError("Failed to create buffer");
-        return false;
-    }
-
-    VkMemoryRequirements memoryRequirements;
-    vkGetBufferMemoryRequirements(vkContext.logicalDevice, *o_buffer, &memoryRequirements);
-
-    uint32_t memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits, properties);
-
-    if (memoryTypeIndex == UINT32_MAX) {
-        return false;
-    }
-
-    const VkMemoryAllocateInfo allocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memoryRequirements.size,
-        .memoryTypeIndex = memoryTypeIndex
-    };
-
-    if (vkAllocateMemory(vkContext.logicalDevice, &allocateInfo, NULL, o_bufferMemory)) {
-        LogError("Failed to allocate buffer memory");
-        return false;
-    }
-
-    vkBindBufferMemory(vkContext.logicalDevice, *o_buffer, *o_bufferMemory, 0);
-
-    return true;
-}
-
 VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* bindings, uint32_t bindingsCount) {
 
     VkDescriptorSetLayoutBinding vkBindings[bindingsCount];
@@ -1254,52 +1006,6 @@ VKK_Result VKK_CreateDescriptorSetLayout(VKK_DescriptorSetLayoutBinding* binding
     }
 
     return VKK_SUCCESS;
-}
-
-static bool CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, VkImage* o_image, VkDeviceMemory* o_memory) {
-
-    const VkImageCreateInfo imageInfo = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .extent = { width, height, 1 },
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .format = format,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage = usage,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-
-    if (vkCreateImage(vkContext.logicalDevice, &imageInfo, NULL, o_image) != VK_SUCCESS) {
-        LogError("Failed to create Image");
-        return false;
-    }
-
-    VkMemoryRequirements memoryRequirements;
-    vkGetImageMemoryRequirements(vkContext.logicalDevice, *o_image, &memoryRequirements);
-
-    uint32_t memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    if (memoryTypeIndex == UINT32_MAX) {
-        return false;
-    }
-
-    const VkMemoryAllocateInfo allocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memoryRequirements.size,
-        .memoryTypeIndex = memoryTypeIndex   
-    };
-
-    if (vkAllocateMemory(vkContext.logicalDevice, &allocateInfo, NULL, o_memory) != VK_SUCCESS) {
-        LogError("Failed to allocate image memory");
-        return false;
-    }
-
-    vkBindImageMemory(vkContext.logicalDevice, *o_image, *o_memory, 0);
-
-    return true;
 }
 
 static bool CreateDepthResources() {
@@ -1330,26 +1036,6 @@ static bool CreateDepthResources() {
     }
 
     return true;
-}
-void VKK_BindTexture(uint32_t binding, VKK_Texture texture) {
-
-    const VkDescriptorImageInfo imageInfo = {
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .imageView = texture->imageView,
-        .sampler = texture->sampler,
-    };
-
-    const VkWriteDescriptorSet descriptorWrite = {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = vkContext.descriptorSet,
-        .dstBinding = binding,
-        .dstArrayElement = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = 1,
-        .pImageInfo = &imageInfo
-    };
-
-    vkUpdateDescriptorSets(vkContext.logicalDevice, 1, &descriptorWrite, 0, NULL);
 }
 
 static void CleanupSwapchain() { 
@@ -1406,26 +1092,6 @@ void VKK_SetFramebufferSize(uint32_t width, uint32_t height) {
     RecreateSwapchain();
 }
 
-VKK_Buffer VKK_CreateBuffer(size_t size, VKK_BufferUsage usage) {
-
-    VkBufferUsageFlags usageFlags;
-    VkMemoryPropertyFlags memoryFlags;
-    GetBufferUsageFlags(usage, &usageFlags, &memoryFlags);
-
-    VKK_Buffer buffer = malloc(sizeof(struct VKK_Buffer_T));
-    buffer->size = (VkDeviceSize)size;
-    buffer->isMapped = false;
-    buffer->mappedPtr = NULL;
-
-    if (!CreateBuffer(buffer->size, usageFlags, memoryFlags, &buffer->handle, &buffer->memory)) {
-        LogError("VKK_CreateBuffer: Failed to create buffer");
-        free(buffer);
-        return NULL;
-    }
-
-    return buffer;
-}
-
 static bool CreateDescriptorPoolAndSet(uint32_t maxSets) {
 
     const VkDescriptorPoolSize poolSizes[] = {
@@ -1456,24 +1122,6 @@ static bool CreateDescriptorPoolAndSet(uint32_t maxSets) {
     }
 
     return true;
-}
-
-static void DestroyBuffer(VKK_Buffer buffer) {
-    vkDestroyBuffer(vkContext.logicalDevice, buffer->handle, NULL);
-    vkFreeMemory(vkContext.logicalDevice, buffer->memory, NULL);
-    free(buffer);
-}
-
-static void DestroyTexture(VKK_Texture texture) {
-
-    if (!texture)
-        return;
-
-    vkDestroySampler(vkContext.logicalDevice, texture->sampler, NULL);
-    vkDestroyImageView(vkContext.logicalDevice, texture->imageView, NULL);
-    vkDestroyImage(vkContext.logicalDevice, texture->image, NULL);
-    vkFreeMemory(vkContext.logicalDevice, texture->memory, NULL);
-    free(texture);
 }
 
 static void HandleDeletion(PendingDeletion* deletion) {
@@ -1701,16 +1349,6 @@ static VkPhysicalDeviceFeatures FillPhysicalDeviceFeatures(VkPhysicalDevice devi
     return features;
 }
 
-VkInstance _VKK_Internal_GetRawInstanceHandle(VKK_Instance instance) {
-    return instance->handle;
-}
-
-VKK_Surface _VKK_Internal_WrapSurface(VkSurfaceKHR rawSurface) {
-    VKK_Surface surface = malloc(sizeof(struct VKK_Surface_T));
-    surface->handle = rawSurface;
-    return surface;
-}
-
 void VKK_SetPushConstantData(void* data) {
     vkContext.pushConstantData = data;
     vkContext.pushConstantDataSet = true;
@@ -1775,241 +1413,6 @@ void VKK_Present(VKK_Color clearColor) {
     ProcessPendingDeletions();
 
     vkContext.currentFrame = (vkContext.currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-}
-
-static VkCommandBuffer BeginSingleTimeCommands() {
-
-    const VkCommandBufferAllocateInfo allocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandPool = vkContext.commandPool,
-        .commandBufferCount = 1
-    };
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(vkContext.logicalDevice, &allocateInfo, &commandBuffer);
-
-    const VkCommandBufferBeginInfo beginInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-    };
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-    return commandBuffer;
-}
-
-static void EndSingleTimeCommands(VkCommandBuffer commandBuffer) {
-
-    vkEndCommandBuffer(commandBuffer);
-
-    const VkSubmitInfo submitInfo = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &commandBuffer   
-    };
-
-    vkQueueSubmit(vkContext.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(vkContext.graphicsQueue);
-
-    vkFreeCommandBuffers(vkContext.logicalDevice, vkContext.commandPool, 1, &commandBuffer);
-}
-
-static void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-    VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
-
-    VkImageMemoryBarrier barrier = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .oldLayout = oldLayout,
-        .newLayout = newLayout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1
-        }
-    };
-
-    VkPipelineStageFlags sourceStage, destinationStage;
-
-    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    } else {
-        LogError("TransitionImageLayout: unsupported layout transition");
-        EndSingleTimeCommands(commandBuffer);
-        return;
-    }
-
-    vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, NULL, 0, NULL, 1, &barrier);
-
-    EndSingleTimeCommands(commandBuffer);
-}
-
-static void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-    VkCommandBuffer commandBuffer = BeginSingleTimeCommands();
-
-    const VkBufferImageCopy region = {
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .mipLevel = 0,
-            .baseArrayLayer = 0,
-            .layerCount = 1,   
-        },
-        .imageOffset = { 0, 0, 0 },
-        .imageExtent = { width, height, 1 }
-    };
-
-    vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-    EndSingleTimeCommands(commandBuffer);
-}
-
-VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_Format textureFormat) {
-
-    if (!vkContext.commandPool) {
-        LogError("VKK_InitRenderer has to be called before creating a Texture");
-        return NULL;
-    }
-    
-    VkDeviceSize imageSize = (VkDeviceSize)width * height * 4;
-
-    VKK_Buffer stagingBuffer = VKK_CreateBuffer(imageSize, VKK_BUFFER_USAGE_STAGING);
-    VKK_WriteBuffer(stagingBuffer, pixels, imageSize, 0);
-
-    VKK_Texture texture = malloc(sizeof(struct VKK_Texture_T));
-    texture->width = width;
-    texture->height = height;
-    
-    if (!CreateImage(width, height, textureFormat, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, &texture->image, &texture->memory)) {
-        free(texture);
-        VKK_DestroyBuffer(stagingBuffer);
-        return NULL;
-    }
-    
-    TransitionImageLayout(texture->image, textureFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    
-    CopyBufferToImage(stagingBuffer->handle, texture->image, width, height);
-    
-    TransitionImageLayout(texture->image, textureFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    
-    VKK_DestroyBuffer(stagingBuffer);
-
-    const VkImageViewCreateInfo viewInfo = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = texture->image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = textureFormat,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1
-        },
-    };
-
-    if (vkCreateImageView(vkContext.logicalDevice, &viewInfo, NULL, &texture->imageView) != VK_SUCCESS) {
-        LogError("Failed to create texture image view");
-        free(texture);
-        return NULL;
-    }
-
-    const VkSamplerCreateInfo samplerInfo = {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = (VkFilter)VKK_SAMPLER_FILTER_LINEAR,
-        .minFilter = (VkFilter)VKK_SAMPLER_FILTER_LINEAR,
-        .addressModeU = (VkSamplerAddressMode)VKK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeV = (VkSamplerAddressMode)VKK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeW = (VkSamplerAddressMode)VKK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .anisotropyEnable = VK_FALSE,
-        .borderColor = (VkBorderColor)VKK_BORDER_COLOR_INT_OPAQUE_BLACK,
-        .unnormalizedCoordinates = VK_FALSE,
-        .compareEnable = VK_FALSE,
-        .compareOp = VK_COMPARE_OP_ALWAYS,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-    };
-
-    if (vkCreateSampler(vkContext.logicalDevice, &samplerInfo, NULL, &texture->sampler) != VK_SUCCESS) {
-        LogError("Failed to create texture sampler");
-        free(texture);
-        return NULL;
-    }
-
-    return texture;
-}
-
-void VKK_GetTextureSize(VKK_Texture texture, uint32_t* o_width, uint32_t* o_height) {
-    *o_width = texture->width;
-    *o_height = texture->height;
-}
-
-void VKK_SetTextureSampler(VKK_Texture texture, VKK_SamplerInfo samplerInfo) {
-
-    const VkSamplerCreateInfo vkSamplerInfo = {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = (VkFilter)samplerInfo.filter,
-        .minFilter = (VkFilter)samplerInfo.filter,
-        .addressModeU = (VkSamplerAddressMode)samplerInfo.addressMode,
-        .addressModeV = (VkSamplerAddressMode)samplerInfo.addressMode,
-        .addressModeW = (VkSamplerAddressMode)samplerInfo.addressMode,
-        .anisotropyEnable = samplerInfo.enableAnisotropy,
-        .maxAnisotropy = samplerInfo.maxAnisotropy == 0.0f ? 1.0f : samplerInfo.maxAnisotropy,
-        .borderColor = (VkBorderColor)samplerInfo.borderColor,
-        .unnormalizedCoordinates = VK_FALSE,
-        .compareEnable = VK_FALSE,
-        .compareOp = VK_COMPARE_OP_ALWAYS,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-    };
-
-    vkDestroySampler(vkContext.logicalDevice, texture->sampler, NULL);
-
-    if (vkCreateSampler(vkContext.logicalDevice, &vkSamplerInfo, NULL, &texture->sampler) != VK_SUCCESS) {
-        LogError("Failed to create texture sampler");
-        VKK_DestroyTexture(texture);
-    }
-}
-
-VKK_Texture VKK_CreateTexture(const char* path, VKK_Format textureFormat) {
-
-    int width, height, channels;
-
-    stbi_uc* pixels = stbi_load(path, &width, &height, &channels, STBI_rgb_alpha);
-    
-    if (!pixels) {
-        fprintf(stderr, "[VKK][ERROR]: Failed to load image '%s'\n", path);
-        return NULL;
-    }
-    
-    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height, textureFormat);
-
-    stbi_image_free(pixels);
-
-    return texture;
-}
-
-void VKK_DestroyTexture(VKK_Texture texture) {
-
-    if (!texture)
-        return;
-
-    PendingDeletion deletion = {
-        .deletionType = DELETION_TEXTURE,
-        .framesUntilDeletion = MAX_FRAMES_IN_FLIGHT,
-        .texture = texture   
-    };
-
-    vkContext.pendingDeletions[vkContext.pendingDeletionCount++] = deletion;
 }
 
 uint32_t VKK_EnumeratePhysicalDevices(VKK_PhysicalDeviceInfo *o_devices, uint32_t maxDevices) {

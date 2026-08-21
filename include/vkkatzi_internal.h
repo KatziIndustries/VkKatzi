@@ -8,6 +8,14 @@
 extern "C" {
 #endif
 
+struct VKK_Instance_T {
+    VkInstance handle;
+};
+
+struct VKK_Surface_T {
+    VkSurfaceKHR handle;
+};
+
 VkInstance _VKK_Internal_GetRawInstanceHandle(VKK_Instance instance);
 VKK_Surface _VKK_Internal_WrapSurface(VkSurfaceKHR rawSurface);
 
