@@ -651,7 +651,6 @@ void VKK_SetPushConstantData(void* data);
 VKK_Pipeline VKK_CreatePipeline(VKK_PipelineDescription desc);
 void VKK_DestroyPipeline(VKK_Pipeline pipeline);
 
-VKK_Texture VKK_CreateTexture(const char* path, VKK_Format textureFormat);
 VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint32_t height, VKK_Format textureFormat);
 void VKK_DestroyTexture(VKK_Texture texture);
 void VKK_SetTextureSampler(VKK_Texture texture, VKK_SamplerInfo samplerInfo);

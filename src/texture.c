@@ -5,9 +5,6 @@
 #include "../include/shared.h"
 #include "../include/vkcontext.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "../include/stb_image.h"
-
 #include <vulkan/vulkan.h>
 
 void VKK_BindTexture(uint32_t binding, VKK_Texture texture) {
@@ -148,8 +145,6 @@ bool CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageUsageF
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
 
-    assert(vkContext.logicalDevice != VK_NULL_HANDLE);
-
     if (vkCreateImage(vkContext.logicalDevice, &imageInfo, NULL, o_image) != VK_SUCCESS) {
         LogError("Failed to create Image");
         return false;
@@ -251,25 +246,6 @@ VKK_Texture VKK_CreateTextureFromPixels(const void* pixels, uint32_t width, uint
 
     return texture;
 }
-
-VKK_Texture VKK_CreateTexture(const char* path, VKK_Format textureFormat) {
-
-    int width, height, channels;
-
-    stbi_uc* pixels = stbi_load(path, &width, &height, &channels, STBI_rgb_alpha);
-    
-    if (!pixels) {
-        fprintf(stderr, "[VKK][ERROR]: Failed to load image '%s'\n", path);
-        return NULL;
-    }
-    
-    VKK_Texture texture = VKK_CreateTextureFromPixels(pixels, (uint32_t)width, (uint32_t)height, textureFormat);
-
-    stbi_image_free(pixels);
-
-    return texture;
-}
-
 
 void VKK_GetTextureSize(VKK_Texture texture, uint32_t* o_width, uint32_t* o_height) {
     *o_width = texture->width;

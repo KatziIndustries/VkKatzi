@@ -1,5 +1,5 @@
 #include "../include/vkkatzi.h"
-#include "../include/vkkatzi_sdl.h"
+#include "../include/vkkatzi_SDL3.h"
 #include "../include/vkkatzi_internal.h"
 
 #include <SDL3/SDL.h>

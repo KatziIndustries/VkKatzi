@@ -32,6 +32,9 @@ install: $(LIB_BUILD) $(LIB_SDL3_BUILD)
 	sudo rm -f /usr/lib/$(LIB_SDL3)
 	sudo ln -s /usr/lib/$(LIB_SDL3_VERSIONED) /usr/lib/$(LIB_SDL3)
 
+	sudo cp include/vkkatzi.h /usr/include/vkkatzi.h
+	sudo cp include/vkkatzi_SDL3.h /usr/include/vkkatzi_SDL3.h
+
 	sudo ldconfig
 
 clean:
