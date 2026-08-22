@@ -13,7 +13,8 @@ LIB_SDL3_BUILD = build/$(LIB_SDL3_VERSIONED)
 
 .PHONY: all install clean
 
-all: $(LIB_BUILD) $(LIB_SDL3_BUILD)
+all: $(LIB_BUILD)
+sdl3: $(LIB_SDL3_BUILD)
 
 $(LIB_BUILD):
 	mkdir -p build
@@ -21,7 +22,7 @@ $(LIB_BUILD):
 
 $(LIB_SDL3_BUILD): $(LIB_BUILD)
 	mkdir -p build
-	$(CC) $(CFLAGS) SDL3/* src/internal.c -lSDL3 -lvkkatzi -o $@
+	$(CC) $(CFLAGS) SDL3/* src/internal.c -lSDL3 -Lbuild -l:libvkkatzi.so.$(VERSION) -o $@
 
 install: $(LIB_BUILD) $(LIB_SDL3_BUILD)
 	sudo cp $(LIB_BUILD) /usr/lib/$(LIB_VERSIONED)
