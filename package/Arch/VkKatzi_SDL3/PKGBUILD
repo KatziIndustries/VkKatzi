@@ -1,0 +1,24 @@
+pkgname=VkKatzi_SDL3
+pkgver=$(cat ../../../VERSION.txt)
+pkgrel=1
+pkgdesc="VkKatzi library including SDL3 module"
+arch=('x86_64')
+license=('MIT')
+source=("https://github.com/KatziIndustries/VkKatzi/archive/refs/tags/v${pkgver}.tar.gz")
+sha256sums=('SKIP')
+makedepends=('git' 'vulkan-icd-loader' 'sdl3')
+
+build() {
+    cd "${srcdir}/VkKatzi-${pkgver}"
+    make sdl3
+}
+
+package() {
+    # install -Dm755 "${srcdir}/VkKatzi-${pkgver}/build/libvkkatzi.so.${pkgver}" "$pkgdir/usr/lib/libvkkatzi.so.${pkgver}"
+    # ln -s "libvkkatzi.so.$pkgver" "$pkgdir/usr/lib/libvkkatzi.so.1"
+    # ln -s "libvkkatzi.so.1" "$pkgdir/usr/lib/libvkkatzi.so"
+
+    install -Dm755 "${srcdir}/VkKatzi-${pkgver}/build/libvkkatzi_SDL3.so.${pkgver}" "$pkgdir/usr/lib/libvkkatzi_SDL3.so.${pkgver}"
+    ln -s "libvkkatzi_SDL3.so.$pkgver" "$pkgdir/usr/lib/libvkkatzi_SDL3.so.1"
+    ln -s "libvkkatzi_SDL3.so.1" "$pkgdir/usr/lib/libvkkatzi_SDL3.so"
+}
