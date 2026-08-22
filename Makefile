@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -shared -fPIC -Wall -Wextra
 
-VERSION = 1.0.1
+VERSION = 1.0.2
 
 LIB = libvkkatzi.so
 LIB_VERSIONED = $(LIB).$(VERSION)
