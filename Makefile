@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -shared -fPIC -Wall -Wextra
 
-VERSION = 0.1.0
+VERSION = 1.0.0
 
 LIB = libvkkatzi.so
 LIB_VERSIONED = $(LIB).$(VERSION)
@@ -13,7 +13,7 @@ LIB_SDL3_BUILD = build/$(LIB_SDL3_VERSIONED)
 
 .PHONY: all install clean
 
-all: $(LIB_BUILD)
+all: $(LIB_BUILD) $(LIB_SDL3_BUILD)
 
 $(LIB_BUILD):
 	mkdir -p build
